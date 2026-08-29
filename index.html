@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.41.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <style>
 :root{
   --bg:#03050c;
@@ -811,9 +813,35 @@ body.role-buyer .buyer-only{display:flex}
         </div>
       </div>
 
-      <!-- 3. Photos -->
+      <!-- 3. Seller identity -->
       <div class="form-card">
-        <h3><span class="step">3</span> Property photos</h3>
+        <h3><span class="step">3</span> Seller identity</h3>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Required for verification. Your ID is private — only used to confirm ownership.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full legal name</label>
+            <input type="text" id="sellFullName" placeholder="Name as on national ID" required>
+          </div>
+          <div class="form-group">
+            <label>National ID / passport number</label>
+            <input type="text" id="sellIdNumber" placeholder="ID or passport number" required>
+          </div>
+        </div>
+        <div class="doc-grid" style="grid-template-columns:1fr">
+          <div class="doc-box" id="docIdCard">
+            <div class="doc-icon">🪪</div>
+            <div class="doc-title">ID card / passport photo</div>
+            <div class="doc-hint">Clear photo of both sides if possible</div>
+            <input type="file" accept="image/*,.pdf">
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Photos -->
+      <div class="form-card">
+        <h3><span class="step">4</span> Property photos</h3>
         <div class="upload-zone" id="photoZone">
           <div class="uz-icon">📷</div>
           <p>Drag & drop photos here, or click to browse</p>
@@ -823,9 +851,9 @@ body.role-buyer .buyer-only{display:flex}
         <div class="file-preview" id="photoPreview"></div>
       </div>
 
-      <!-- 4. Ownership & legal documents -->
+      <!-- 5. Ownership & legal documents -->
       <div class="form-card">
-        <h3><span class="step">4</span> Ownership & legal documents</h3>
+        <h3><span class="step">5</span> Ownership & legal documents</h3>
         <p style="font-size:11px;color:var(--muted);margin-bottom:12px">
           Upload clear scans or photos of real ownership documents. These are used for verification only and are not shown publicly.
         </p>
@@ -837,9 +865,9 @@ body.role-buyer .buyer-only{display:flex}
             <input type="file" accept=".pdf,image/*">
           </div>
           <div class="doc-box" id="docLicense">
-            <div class="doc-icon">🪪</div>
-            <div class="doc-title">Seller license / ID</div>
-            <div class="doc-hint">National ID or agent license</div>
+            <div class="doc-icon">📋</div>
+            <div class="doc-title">Seller license</div>
+            <div class="doc-hint">Agent license (if applicable)</div>
             <input type="file" accept=".pdf,image/*">
           </div>
           <div class="doc-box" id="docLand">
@@ -857,16 +885,16 @@ body.role-buyer .buyer-only{display:flex}
         </div>
       </div>
 
-      <!-- 5. Confirm & pay -->
+      <!-- 6. Confirm & pay -->
       <div class="form-card">
-        <h3><span class="step">5</span> Confirm & pay $10</h3>
+        <h3><span class="step">6</span> Confirm & pay $10</h3>
         <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">
           By submitting you confirm that all documents are genuine and that you have the right to list this property.
-          The <strong style="color:var(--gold)">$10 fee</strong> is charged once when you publish. Demo mode does not process real payments.
+          The <strong style="color:var(--gold)">$10 fee</strong> is charged once. Listing stays pending until payment and document review.
         </p>
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--muted);cursor:pointer">
           <input type="checkbox" id="sellAgree" style="margin-top:2px">
-          <span>I confirm the ownership documents and license are authentic, and I agree to the listing terms.</span>
+          <span>I confirm my name, ID, ownership documents and license are authentic, and I agree to the listing terms.</span>
         </label>
       </div>
 
@@ -1399,20 +1427,87 @@ document.querySelectorAll('.doc-box').forEach(box => {
 });
 
 // Submit listing ($10 fee — demo)
-document.getElementById('sellSubmit').onclick = () => {
+/* ========== SUPABASE ========== */
+let sb = null;
+try {
+  const cfg = window.HC_CONFIG || {};
+  if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase) {
+    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  }
+} catch (e) { console.warn('Supabase init failed', e); }
+
+async function ensureSellerSession() {
+  if (!sb) {
+    alert('Database not connected. Check config.js on the site.');
+    return null;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) return session;
+  const email = prompt('Seller email (we create an account if new):');
+  if (!email) return null;
+  const password = prompt('Password (min 6 characters):');
+  if (!password || password.length < 6) {
+    alert('Password must be at least 6 characters.');
+    return null;
+  }
+  let { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    const fullName = document.getElementById('sellFullName')?.value?.trim() || email.split('@')[0];
+    ({ data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName, role: 'seller' } }
+    }));
+    if (error) {
+      alert('Login/signup failed: ' + error.message);
+      return null;
+    }
+    alert('Account created. If email confirmation is required, confirm then try again.');
+  }
+  // Ensure seller role on profile
+  const uid = data.session?.user?.id || data.user?.id;
+  if (uid) {
+    await sb.from('profiles').update({ role: 'seller' }).eq('id', uid);
+    setRole('seller');
+  }
+  return data.session || (await sb.auth.getSession()).data.session;
+}
+
+async function uploadFile(bucket, path, file) {
+  const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+  if (error) throw error;
+  if (bucket === 'property-photos') {
+    const { data } = sb.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  }
+  return path;
+}
+
+document.getElementById('sellSubmit').onclick = async () => {
   const title = document.getElementById('sellTitle').value.trim();
   const country = document.getElementById('sellCountry').value.trim();
   const city = document.getElementById('sellCity').value.trim();
+  const fullName = document.getElementById('sellFullName').value.trim();
+  const idNumber = document.getElementById('sellIdNumber').value.trim();
   const agree = document.getElementById('sellAgree').checked;
   const ownership = document.querySelector('#docOwnership input').files[0];
+  const idCard = document.querySelector('#docIdCard input').files[0];
   const license = document.querySelector('#docLicense input').files[0];
 
   if (!title || !country || !city) {
     alert('Please fill in title, country and city.');
     return;
   }
-  if (!ownership || !license) {
-    alert('Proof of ownership and seller license / ID are required.');
+  if (!fullName || !idNumber) {
+    alert('Full legal name and ID / passport number are required.');
+    return;
+  }
+  if (!idCard) {
+    alert('Please upload a photo of your ID card or passport.');
+    return;
+  }
+  if (!ownership) {
+    alert('Proof of ownership (title deed / land certificate) is required.');
     return;
   }
   if (!agree) {
@@ -1426,28 +1521,104 @@ document.getElementById('sellSubmit').onclick = () => {
 
   const btn = document.getElementById('sellSubmit');
   btn.disabled = true;
-  btn.textContent = 'Processing $10…';
-  setTimeout(() => {
-    btn.textContent = 'Published ✓';
-    btn.style.background = 'linear-gradient(135deg,#00e676,#00c853)';
-    btn.style.color = '#fff';
-    alert('Listing submitted!\n\n$10 fee recorded (demo).\nYour property will appear on the map after document verification.\n\n' + title + ' · ' + city + ', ' + country);
-    setTimeout(() => {
-      closeSellPage();
+  btn.textContent = 'Saving…';
+
+  try {
+    const session = await ensureSellerSession();
+    if (!session) {
       btn.disabled = false;
       btn.textContent = 'Pay $10 & Publish Listing';
-      btn.style.background = '';
-      btn.style.color = '';
-      document.getElementById('sellForm').reset();
-      photoFiles = [];
-      renderPhotoPreview();
-      document.querySelectorAll('.doc-box').forEach(b => {
-        b.classList.remove('filled');
-        const hint = b.querySelector('.doc-hint');
-        if (hint && hint.dataset.orig) hint.textContent = hint.dataset.orig;
+      return;
+    }
+    const uid = session.user.id;
+
+    // Update profile name
+    await sb.from('profiles').update({ full_name: fullName, role: 'seller' }).eq('id', uid);
+
+    const price = parseFloat(document.getElementById('sellPrice').value) || 0;
+    const { data: prop, error: propErr } = await sb.from('properties').insert({
+      owner_id: uid,
+      title,
+      description: (document.getElementById('sellDesc').value || '') +
+        '\n\n[Seller ID ref: ' + idNumber + ']',
+      property_type: document.getElementById('sellType').value,
+      listing_type: document.getElementById('sellTxn').value,
+      price_usd: price,
+      bedrooms: parseInt(document.getElementById('sellBeds').value || '0', 10),
+      bathrooms: parseInt(document.getElementById('sellBaths').value || '0', 10),
+      country,
+      city,
+      address: document.getElementById('sellAddress').value.trim() || null,
+      lat: parseFloat(document.getElementById('sellLat').value) || null,
+      lng: parseFloat(document.getElementById('sellLng').value) || null,
+      status: 'pending_payment',
+      payment_status: 'unpaid'
+    }).select().single();
+
+    if (propErr) throw propErr;
+    const propertyId = prop.id;
+
+    // Photos
+    for (let i = 0; i < photoFiles.length; i++) {
+      const f = photoFiles[i];
+      const path = uid + '/' + propertyId + '/photo_' + i + '_' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const publicUrl = await uploadFile('property-photos', path, f);
+      await sb.from('property_photos').insert({
+        property_id: propertyId,
+        storage_path: path,
+        public_url: publicUrl,
+        sort_order: i
       });
-    }, 1200);
-  }, 900);
+    }
+
+    // Documents
+    async function saveDoc(file, docType) {
+      if (!file) return;
+      const path = uid + '/' + propertyId + '/' + docType + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      await uploadFile('property-documents', path, file);
+      await sb.from('property_documents').insert({
+        property_id: propertyId,
+        doc_type: docType,
+        storage_path: path,
+        file_name: file.name
+      });
+    }
+    await saveDoc(ownership, 'ownership');
+    await saveDoc(idCard, 'license'); // ID stored as license type for verification
+    await saveDoc(license, 'extra');
+    await saveDoc(document.querySelector('#docLand input').files[0], 'land');
+    await saveDoc(document.querySelector('#docExtra input').files[0], 'extra');
+
+    btn.textContent = 'Saved — pay $10';
+    alert(
+      'Listing saved!\n\n' +
+      title + ' · ' + city + ', ' + country + '\n\n' +
+      'Status: pending payment ($10).\n' +
+      'Your documents (ID + ownership) are private for verification.\n\n' +
+      'Next: complete the $10 Stripe payment so the listing can be reviewed and published on the map.\n' +
+      'Property ID: ' + propertyId
+    );
+
+    // Try Edge Function checkout if deployed; otherwise user pays via Stripe Dashboard/Payment Link
+    try {
+      const { data: checkout, error: cErr } = await sb.functions.invoke('create-checkout', {
+        body: { property_id: propertyId, price_id: (window.HC_CONFIG || {}).STRIPE_PRICE_ID }
+      });
+      if (!cErr && checkout?.url) {
+        window.location.href = checkout.url;
+        return;
+      }
+    } catch (_) { /* function may not be deployed yet */ }
+
+    alert('Listing is in the database.\nDeploy the Stripe Edge Function (create-checkout) to enable automatic $10 checkout.\nUntil then, mark payment in Supabase after you receive $10.');
+    closeSellPage();
+  } catch (err) {
+    console.error(err);
+    alert('Error: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Pay $10 & Publish Listing';
+  }
 };
 
 document.querySelectorAll('.doc-box .doc-hint').forEach(h => { h.dataset.orig = h.textContent; });

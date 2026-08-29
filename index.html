@@ -1,0 +1,1462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="description" content="HouseConnect 2.0 — Global property discovery on an interactive 3D Earth.">
+<title>HouseConnect 2.0 — Find Your Place in the World</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/globe.gl@2.41.4"></script>
+<style>
+:root{
+  --bg:#03050c;
+  --panel:rgba(8,14,28,.94);
+  --panel2:rgba(10,18,36,.97);
+  --line:rgba(77,184,255,.2);
+  --line2:rgba(255,255,255,.08);
+  --blue:#4db8ff;
+  --cyan:#00f0ff;
+  --purple:#7c5cff;
+  --gold:#d9b66f;
+  --green:#00e676;
+  --text:#edf6ff;
+  --muted:#7d9abd;
+  --danger:#ff5f6d;
+  --nav:56px;
+  --sidebar:228px;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+
+/* ===== TOP NAV ===== */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--nav);z-index:200;
+  display:flex;align-items:center;gap:16px;padding:0 16px;
+  background:rgba(3,5,12,.95);backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(77,184,255,.12);
+}
+.logo{display:flex;align-items:center;gap:10px;font-family:"Space Grotesk";font-weight:700;white-space:nowrap}
+.logo-mark{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,#00c6ff,#7c5cff);
+  display:grid;place-items:center;font-size:16px;color:#fff;
+  box-shadow:0 0 24px rgba(0,198,255,.35);
+}
+.logo-text{font-size:14px;letter-spacing:.02em}
+.logo-text span{color:var(--cyan);font-weight:600;font-size:11px;margin-left:3px}
+.logo-sub{font-size:9px;color:var(--muted);font-weight:400;margin-top:-1px}
+.nav{display:flex;gap:1px;flex:1;justify-content:center}
+.nav a{
+  color:var(--muted);padding:7px 11px;border-radius:8px;font-size:12px;font-weight:500;
+  transition:.15s;
+}
+.nav a:hover,.nav a.active{color:var(--cyan);background:rgba(0,240,255,.07)}
+.top-actions{display:flex;align-items:center;gap:8px}
+.search-top{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);
+  border-radius:10px;padding:6px 12px;width:190px;
+}
+.search-top input{flex:1;background:transparent;border:0;outline:0;font-size:12px;color:var(--text)}
+.search-top input::placeholder{color:#5a7394}
+.icon-btn{
+  width:34px;height:34px;border-radius:9px;border:1px solid var(--line);
+  background:rgba(255,255,255,.03);display:grid;place-items:center;
+  color:var(--muted);font-size:14px;position:relative;
+}
+.icon-btn:hover{color:var(--cyan);border-color:var(--blue)}
+.badge-dot{
+  position:absolute;top:5px;right:5px;width:7px;height:7px;
+  background:var(--danger);border-radius:50%;border:2px solid var(--bg);
+}
+.profile{
+  display:flex;align-items:center;gap:8px;padding:3px 10px 3px 3px;
+  border-radius:24px;border:1px solid var(--line);background:rgba(255,255,255,.03);
+  cursor:pointer;
+}
+.profile img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+.profile-info{font-size:11px;line-height:1.25}
+.profile-info b{display:block;font-weight:600}
+.profile-info span{color:var(--muted);font-size:10px}
+
+/* ===== APP + GLOBE (full interactive area) ===== */
+#app{position:relative;width:100%;height:100%;padding-top:var(--nav)}
+#globe{
+  position:absolute;
+  top:var(--nav);
+  left:var(--sidebar);
+  right:0;
+  bottom:195px;
+  z-index:1;
+}
+#globe canvas{outline:none;cursor:grab}
+#globe canvas:active{cursor:grabbing}
+
+/* ===== LEFT SIDEBAR ===== */
+#sidebar{
+  position:fixed;top:var(--nav);left:0;bottom:0;width:var(--sidebar);z-index:50;
+  background:rgba(5,10,22,.96);backdrop-filter:blur(20px);
+  border-right:1px solid rgba(77,184,255,.1);
+  display:flex;flex-direction:column;padding:12px 8px;
+  overflow-y:auto;
+  pointer-events:auto;
+}
+.side-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 11px;border-radius:9px;font-size:12px;font-weight:500;
+  color:var(--muted);transition:.15s;margin-bottom:1px;
+}
+.side-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.side-item.active{
+  background:linear-gradient(135deg,rgba(0,198,255,.18),rgba(124,92,255,.14));
+  color:var(--cyan);border:1px solid rgba(0,240,255,.2);
+}
+.side-item .icon{width:18px;text-align:center;font-size:14px}
+.side-item .count{
+  margin-left:auto;background:var(--danger);color:#fff;
+  font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;
+}
+.side-promo{
+  margin-top:auto;padding:12px;border-radius:12px;
+  background:linear-gradient(145deg,rgba(0,110,255,.15),rgba(124,92,255,.1));
+  border:1px solid rgba(77,184,255,.2);
+}
+.side-promo h4{font-size:11px;font-weight:600;margin-bottom:3px}
+.side-promo p{font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.4}
+.side-promo button{
+  width:100%;padding:7px;border-radius:8px;font-size:11px;font-weight:700;
+  background:linear-gradient(135deg,#00c6ff,#7c5cff);color:#fff;
+}
+
+/* ===== RIGHT FILTER PANEL ===== */
+#filters{
+  position:fixed;top:calc(var(--nav) + 12px);right:12px;width:280px;z-index:40;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  backdrop-filter:blur(18px);box-shadow:0 16px 48px rgba(0,0,0,.45);
+  overflow:hidden;
+  pointer-events:auto;
+}
+.filter-tabs{display:flex;border-bottom:1px solid var(--line2)}
+.filter-tabs button{
+  flex:1;padding:10px;font-size:12px;font-weight:600;color:var(--muted);
+  border-bottom:2px solid transparent;transition:.15s;
+}
+.filter-tabs button.active{color:var(--cyan);border-bottom-color:var(--cyan);background:rgba(0,240,255,.05)}
+.filter-body{padding:12px}
+.filter-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+.filter-field{margin-bottom:10px}
+.filter-field input,.filter-field select{
+  width:100%;padding:8px 11px;border-radius:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line2);
+  font-size:12px;outline:none;color:var(--text);
+}
+.filter-field input:focus,.filter-field select:focus{border-color:var(--blue)}
+.price-slider{display:flex;align-items:center;gap:6px;margin-top:4px}
+.price-slider input[type=range]{flex:1;accent-color:var(--purple);height:4px}
+.price-vals{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px}
+.beds-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-search{
+  width:100%;padding:11px;border-radius:10px;font-size:12px;font-weight:700;
+  background:linear-gradient(135deg,#00c6ff,#7c5cff);color:#fff;
+  box-shadow:0 4px 20px rgba(0,114,255,.35);margin-top:2px;
+}
+.btn-search:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,114,255,.45)}
+
+/* ===== LOCATION POPUP (does NOT block globe when closed) ===== */
+#loc-popup{
+  position:fixed;
+  top:72px;
+  left:calc(var(--sidebar) + 16px);
+  width:250px;
+  z-index:45;
+  background:var(--panel2);
+  border:1px solid var(--line);
+  border-radius:14px;
+  backdrop-filter:blur(20px);
+  box-shadow:0 16px 50px rgba(0,0,0,.55);
+  display:none;
+  overflow:hidden;
+  pointer-events:auto;
+}
+#loc-popup.show{display:block}
+.loc-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 12px;border-bottom:1px solid var(--line2);
+}
+.loc-head h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+.loc-head .close-btn{
+  width:28px;height:28px;border-radius:8px;
+  background:rgba(255,255,255,.06);border:1px solid var(--line2);
+  color:var(--muted);font-size:16px;line-height:1;
+  display:grid;place-items:center;transition:.15s;
+}
+.loc-head .close-btn:hover{background:rgba(255,95,109,.2);color:var(--danger);border-color:var(--danger)}
+.loc-body{padding:11px 12px}
+.loc-stat{font-size:18px;font-weight:700;color:var(--cyan);margin-bottom:2px}
+.loc-stat small{font-size:10px;color:var(--muted);font-weight:400}
+.loc-avg{font-size:11px;color:var(--muted);margin:6px 0}
+.loc-cities{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px}
+.loc-cities span{
+  font-size:9px;padding:3px 7px;border-radius:5px;
+  background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.15);color:var(--cyan);
+}
+.loc-types{margin:8px 0}
+.loc-type{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:10px}
+.loc-type .bar{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.loc-type .bar i{display:block;height:100%;border-radius:3px}
+.loc-type .pct{width:26px;text-align:right;color:var(--muted);font-size:9px}
+.btn-explore{
+  width:100%;padding:9px;border-radius:9px;font-size:11px;font-weight:700;
+  background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;margin-top:4px;
+}
+
+/* ===== GLOBE TOOLBAR (floats above bottom, doesn't block much) ===== */
+#globe-tools{
+  position:fixed;
+  bottom:210px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:35;
+  display:flex;gap:3px;padding:5px 8px;border-radius:11px;
+  background:rgba(6,12,25,.9);border:1px solid var(--line);backdrop-filter:blur(16px);
+  pointer-events:auto;
+}
+#globe-tools button{
+  width:34px;height:30px;border-radius:7px;font-size:12px;color:var(--muted);
+  display:grid;place-items:center;transition:.15s;
+}
+#globe-tools button:hover,#globe-tools button.active{color:var(--cyan);background:rgba(0,240,255,.12)}
+
+/* ===== LAYER TOGGLE ===== */
+#layer-toggle{
+  position:fixed;top:50%;right:300px;transform:translateY(-50%);z-index:35;
+  display:flex;flex-direction:column;gap:5px;
+  pointer-events:auto;
+}
+#layer-toggle button{
+  width:38px;height:38px;border-radius:10px;
+  background:rgba(6,12,25,.9);border:1px solid var(--line);
+  color:var(--muted);font-size:14px;display:grid;place-items:center;
+  backdrop-filter:blur(12px);transition:.15s;
+}
+#layer-toggle button:hover,#layer-toggle button.active{color:var(--cyan);border-color:var(--cyan);background:rgba(0,240,255,.1)}
+
+/* ===== BOTTOM SECTION ===== */
+#bottom-section{
+  position:fixed;left:var(--sidebar);right:0;bottom:0;z-index:30;
+  background:linear-gradient(0deg,rgba(3,5,12,.98) 55%,rgba(3,5,12,.85));
+  padding:10px 14px 10px;
+  height:195px;
+  border-top:1px solid rgba(77,184,255,.1);
+  pointer-events:auto;
+  overflow:hidden;
+}
+.bottom-grid{
+  display:grid;
+  grid-template-columns:1fr 200px 220px;
+  gap:12px;
+  height:130px;
+}
+.section-head{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;
+}
+.section-head h3{font-size:11px;font-weight:700;letter-spacing:.02em}
+.section-head .arrows{display:flex;gap:3px}
+.section-head .arrows button{
+  width:22px;height:22px;border-radius:5px;border:1px solid var(--line);
+  color:var(--muted);font-size:11px;display:grid;place-items:center;
+}
+.section-head .arrows button:hover{color:var(--cyan)}
+
+.feat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;height:100px}
+.feat-scroll::-webkit-scrollbar{display:none}
+.feat-card{
+  flex:0 0 175px;border-radius:9px;overflow:hidden;
+  background:rgba(255,255,255,.03);border:1px solid var(--line2);
+  transition:.15s;cursor:pointer;
+}
+.feat-card:hover{border-color:var(--blue);transform:translateY(-1px)}
+.feat-img{height:72px;background-size:cover;background-position:center;position:relative}
+.feat-badge{
+  position:absolute;top:5px;left:5px;font-size:7px;font-weight:700;
+  padding:2px 5px;border-radius:3px;text-transform:uppercase;
+}
+.feat-badge.featured{background:rgba(0,198,255,.9);color:#fff}
+.feat-badge.new{background:rgba(0,230,118,.9);color:#fff}
+.feat-badge.drop{background:rgba(255,95,109,.9);color:#fff}
+.feat-badge.verified{background:rgba(124,92,255,.9);color:#fff}
+.feat-heart{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.5);display:grid;place-items:center;font-size:10px;color:#fff}
+.feat-body{padding:6px 8px}
+.feat-body h4{font-size:10px;font-weight:600;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feat-body .loc{font-size:8px;color:var(--muted);margin-bottom:2px}
+.feat-body .price{font-size:11px;font-weight:700;color:var(--gold)}
+.feat-body .meta{font-size:8px;color:var(--muted);margin-top:2px;display:flex;gap:5px}
+.feat-tour{
+  position:absolute;bottom:4px;right:4px;font-size:7px;padding:2px 5px;
+  background:rgba(0,0,0,.55);border-radius:3px;color:var(--cyan);border:1px solid rgba(0,240,255,.3);
+}
+
+.live-list{display:flex;flex-direction:column;gap:5px}
+.live-item{display:flex;align-items:flex-start;gap:6px;font-size:10px}
+.live-dot{width:7px;height:7px;border-radius:50%;margin-top:3px;flex-shrink:0}
+.live-item .time{color:var(--muted);font-size:8px;margin-top:1px}
+.view-all{font-size:9px;color:var(--cyan)}
+
+.promo-card{
+  border-radius:10px;overflow:hidden;height:78px;
+  background:url('https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=500&q=80') center/cover;
+  position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:8px 10px;
+}
+.promo-card::before{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(3,5,12,.92) 25%,transparent 75%)}
+.promo-card > *{position:relative;z-index:1}
+.promo-card h4{font-size:11px;font-weight:700;margin-bottom:2px;line-height:1.25}
+.promo-card p{font-size:9px;color:#b0c4de;margin-bottom:5px}
+.promo-card button{
+  align-self:flex-start;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:700;
+  background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;
+}
+.quick-row{display:flex;gap:4px;margin-top:6px}
+.quick-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:5px 2px;border-radius:6px;border:1px solid var(--line2);
+  background:rgba(255,255,255,.03);font-size:8px;color:var(--muted);
+}
+.quick-btn span{font-size:12px}
+.quick-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+#popular{
+  display:flex;align-items:center;gap:8px;margin-top:6px;height:40px;
+}
+#popular h4{font-size:10px;font-weight:600;white-space:nowrap;margin-right:2px}
+.pop-scroll{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none}
+.pop-scroll::-webkit-scrollbar{display:none}
+.pop-card{
+  flex:0 0 100px;height:38px;border-radius:7px;overflow:hidden;
+  background-size:cover;background-position:center;position:relative;cursor:pointer;
+  border:1px solid transparent;transition:.15s;
+}
+.pop-card:hover{border-color:var(--cyan);transform:scale(1.03)}
+.pop-card::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.78),transparent 55%)}
+.pop-card .info{position:absolute;bottom:3px;left:5px;right:5px;z-index:1}
+.pop-card .info b{display:block;font-size:9px;font-weight:600}
+.pop-card .info span{font-size:7px;color:#a0b8d0}
+
+/* Marker labels on globe — count + country name */
+.marker-label{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  pointer-events:none !important;
+  font-family:Inter,system-ui,sans-serif;
+  text-align:center;
+  transform:translate(-50%,-100%);
+}
+.marker-count{
+  background:rgba(0,198,255,.9);color:#fff;font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:11px;white-space:nowrap;
+  box-shadow:0 2px 12px rgba(0,0,0,.45);
+}
+.marker-name{
+  color:#edf6ff;font-size:9px;font-weight:600;
+  text-shadow:0 1px 4px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.7);
+  white-space:nowrap;letter-spacing:.02em;
+}
+
+/* Profile dropdown */
+.profile{position:relative}
+.profile-menu{
+  position:absolute;top:calc(100% + 8px);right:0;width:220px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;overflow:hidden;z-index:300;
+}
+.profile-menu.show{display:block}
+.profile-menu .pm-head{padding:12px 14px;border-bottom:1px solid var(--line2)}
+.profile-menu .pm-head b{display:block;font-size:13px}
+.profile-menu .pm-head span{font-size:11px;color:var(--muted)}
+.profile-menu .pm-role{
+  display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line2);
+}
+.profile-menu .pm-role button{
+  flex:1;padding:7px;border-radius:8px;font-size:11px;font-weight:600;
+  border:1px solid var(--line2);color:var(--muted);transition:.15s;
+}
+.profile-menu .pm-role button.active{
+  background:rgba(0,240,255,.12);border-color:var(--cyan);color:var(--cyan);
+}
+.profile-menu a,.profile-menu button.pm-item{
+  display:flex;align-items:center;gap:8px;width:100%;
+  padding:10px 14px;font-size:12px;color:var(--muted);text-align:left;
+  border:none;background:none;cursor:pointer;
+}
+.profile-menu a:hover,.profile-menu button.pm-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
+
+/* ===== SELL / LIST PROPERTY PAGE ===== */
+#sell-page{
+  position:fixed;inset:0;top:var(--nav);z-index:150;
+  background:var(--bg);overflow-y:auto;display:none;
+}
+#sell-page.show{display:block}
+.sell-wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+.sell-wrap h1{font-family:"Space Grotesk";font-size:1.6rem;margin-bottom:6px}
+.sell-wrap .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+.fee-banner{
+  display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;
+  background:linear-gradient(135deg,rgba(217,182,111,.12),rgba(0,198,255,.08));
+  border:1px solid rgba(217,182,111,.3);margin-bottom:22px;
+}
+.fee-banner .fee-amt{font-size:22px;font-weight:700;color:var(--gold)}
+.fee-banner .fee-txt{font-size:12px;color:var(--muted);line-height:1.4}
+.sell-form{display:flex;flex-direction:column;gap:18px}
+.form-card{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;
+}
+.form-card h3{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.form-card h3 .step{
+  width:22px;height:22px;border-radius:50%;background:rgba(0,240,255,.15);color:var(--cyan);
+  font-size:11px;display:grid;place-items:center;font-weight:700;
+}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:10px 12px;border-radius:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line2);
+  font-size:13px;outline:none;color:var(--text);
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue)}
+.form-group textarea{min-height:80px;resize:vertical}
+.upload-zone{
+  border:2px dashed rgba(77,184,255,.25);border-radius:12px;padding:22px;
+  text-align:center;cursor:pointer;transition:.15s;background:rgba(255,255,255,.02);
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--cyan);background:rgba(0,240,255,.04)}
+.upload-zone .uz-icon{font-size:28px;margin-bottom:6px}
+.upload-zone p{font-size:12px;color:var(--muted)}
+.upload-zone small{font-size:10px;color:#5a7394}
+.upload-zone input[type=file]{display:none}
+.file-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.file-chip{
+  display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;
+  background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.2);font-size:11px;
+}
+.file-chip button{color:var(--danger);font-size:14px;line-height:1}
+.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.doc-box{
+  border:1px solid var(--line2);border-radius:10px;padding:14px;text-align:center;
+  background:rgba(255,255,255,.02);cursor:pointer;transition:.15s;
+}
+.doc-box:hover{border-color:var(--cyan)}
+.doc-box.filled{border-color:var(--green);background:rgba(0,230,118,.06)}
+.doc-box .doc-icon{font-size:22px;margin-bottom:4px}
+.doc-box .doc-title{font-size:11px;font-weight:600;margin-bottom:2px}
+.doc-box .doc-hint{font-size:9px;color:var(--muted)}
+.doc-box input[type=file]{display:none}
+.sell-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.btn-outline{
+  padding:11px 18px;border-radius:10px;font-size:12px;font-weight:600;
+  border:1px solid var(--line);color:var(--text);background:rgba(255,255,255,.03);
+}
+.btn-pay{
+  padding:11px 22px;border-radius:10px;font-size:12px;font-weight:700;
+  background:linear-gradient(135deg,#d9b66f,#b8943f);color:#1a1408;
+  box-shadow:0 4px 18px rgba(217,182,111,.3);
+}
+.btn-pay:hover{transform:translateY(-1px)}
+.seller-only{display:none}
+body.role-seller .seller-only{display:flex}
+body.role-buyer .buyer-only{display:flex}
+.role-badge{
+  display:inline-block;padding:2px 8px;border-radius:6px;font-size:9px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;
+}
+.role-badge.buyer{background:rgba(0,240,255,.12);color:var(--cyan)}
+.role-badge.seller{background:rgba(217,182,111,.15);color:var(--gold)}
+
+/* Responsive */
+@media(max-width:1100px){
+  #filters{width:250px}
+  #layer-toggle{right:270px}
+  .bottom-grid{grid-template-columns:1fr 170px 190px}
+}
+@media(max-width:900px){
+  :root{--sidebar:0px}
+  #sidebar{display:none}
+  #globe{left:0}
+  #bottom-section{left:0}
+  #loc-popup{left:12px}
+  #filters{width:calc(100% - 24px);right:12px;top:auto;bottom:205px;max-height:38vh}
+  #layer-toggle{display:none}
+  .nav{display:none}
+  .search-top{width:130px}
+  .profile-info{display:none}
+  .form-row,.doc-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TOP NAV -->
+<header id="topbar">
+  <a class="logo" href="#">
+    <span class="logo-mark">⌂</span>
+    <div>
+      <div class="logo-text">HOUSECONNECT <span>2.0</span></div>
+      <div class="logo-sub">Find Your Place in the World.</div>
+    </div>
+  </a>
+  <nav class="nav">
+    <a href="#" class="active" data-page="explore">Explore</a>
+    <a href="#" data-page="explore">Properties</a>
+    <a href="#" data-page="explore">Map</a>
+    <a href="#" data-page="explore">3D Tours</a>
+    <a href="#" data-page="explore">Agents</a>
+    <a href="#" data-page="sell" id="navSell">Sell</a>
+    <a href="#">About</a>
+  </nav>
+  <div class="top-actions">
+    <div class="search-top">
+      <span style="opacity:.5;font-size:12px">⌕</span>
+      <input type="text" placeholder="Search anything..." id="topSearch">
+    </div>
+    <button class="icon-btn" title="Notifications">🔔<span class="badge-dot"></span></button>
+    <button class="icon-btn" title="Messages">✉</button>
+    <div class="profile" id="profileBtn">
+      <img src="https://i.pravatar.cc/80?img=47" alt="Sarah" id="profileAvatar">
+      <div class="profile-info">
+        <b id="profileName">Sarah Johnson</b>
+        <span id="profileRoleLabel"><span class="role-badge buyer">Buyer</span></span>
+      </div>
+      <span style="color:var(--muted);font-size:10px">▾</span>
+      <div class="profile-menu" id="profileMenu">
+        <div class="pm-head">
+          <b id="pmName">Sarah Johnson</b>
+          <span id="pmEmail">sarah.j@email.com</span>
+        </div>
+        <div class="pm-role">
+          <button type="button" class="active" data-role="buyer" id="roleBuyer">👤 Buyer</button>
+          <button type="button" data-role="seller" id="roleSeller">🏠 Seller</button>
+        </div>
+        <a href="#" data-page="sell" class="seller-only" style="display:none"><span>📤</span> List a Property</a>
+        <a href="#"><span>🔖</span> Saved Properties</a>
+        <a href="#"><span>📊</span> Dashboard</a>
+        <a href="#"><span>⚙</span> Settings</a>
+        <button type="button" class="pm-item" style="color:var(--danger)"><span>↩</span> Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- LEFT SIDEBAR -->
+<aside id="sidebar">
+  <a class="side-item active" href="#" data-page="explore"><span class="icon">🌐</span> Explore World</a>
+  <a class="side-item" href="#"><span class="icon">🔖</span> Saved Properties</a>
+  <a class="side-item" href="#"><span class="icon">⚖</span> Comparisons</a>
+  <a class="side-item" href="#"><span class="icon">📁</span> Collections</a>
+  <a class="side-item" href="#"><span class="icon">💬</span> Messages <span class="count">3</span></a>
+  <a class="side-item" href="#"><span class="icon">👁</span> Viewing Requests</a>
+  <a class="side-item" href="#"><span class="icon">📊</span> Dashboard</a>
+  <a class="side-item" href="#"><span class="icon">⚙</span> Settings</a>
+  <div class="side-promo">
+    <h4>List Your Property</h4>
+    <p>Upload photos, ownership papers & list worldwide. Only $10.</p>
+    <button type="button" id="btnListProperty">Get Started — $10</button>
+  </div>
+</aside>
+
+<!-- 3D GLOBE — full interactive area between sidebar and bottom -->
+<div id="globe"></div>
+
+<!-- LOCATION POPUP (hidden by default — click a marker to open) -->
+<div id="loc-popup">
+  <div class="loc-head">
+    <h3><span id="loc-flag">🇵🇹</span> <span id="loc-name">Portugal</span></h3>
+    <button class="close-btn" id="locClose" title="Close">×</button>
+  </div>
+  <div class="loc-body">
+    <div class="loc-stat" id="loc-count">125,430 <small>Properties</small></div>
+    <div class="loc-avg">Average Price <strong style="color:var(--gold)" id="loc-avg">€285,000</strong></div>
+    <div class="filter-label" style="margin-top:8px">Popular Cities</div>
+    <div class="loc-cities" id="loc-cities">
+      <span>Lisbon</span><span>Porto</span><span>Algarve</span><span>Braga</span>
+    </div>
+    <div class="filter-label">Property Types</div>
+    <div class="loc-types" id="loc-types">
+      <div class="loc-type"><span style="width:65px">Apartments</span><div class="bar"><i style="width:45%;background:#4db8ff"></i></div><span class="pct">45%</span></div>
+      <div class="loc-type"><span style="width:65px">Houses</span><div class="bar"><i style="width:30%;background:#00e676"></i></div><span class="pct">30%</span></div>
+      <div class="loc-type"><span style="width:65px">Villas</span><div class="bar"><i style="width:15%;background:#d9b66f"></i></div><span class="pct">15%</span></div>
+      <div class="loc-type"><span style="width:65px">Land</span><div class="bar"><i style="width:10%;background:#ff8a65"></i></div><span class="pct">10%</span></div>
+    </div>
+    <button class="btn-explore" id="locExplore">Explore Portugal</button>
+  </div>
+</div>
+
+<!-- RIGHT FILTERS -->
+<aside id="filters">
+  <div class="filter-tabs">
+    <button class="active" data-tab="buy">Buy</button>
+    <button data-tab="rent">Rent</button>
+    <button data-tab="sold">Sold</button>
+  </div>
+  <div class="filter-body">
+    <div class="filter-field">
+      <div class="filter-label">Where do you want to live?</div>
+      <input type="text" id="filterLoc" placeholder="City, Country, or Region">
+    </div>
+    <div class="filter-field">
+      <div class="filter-label">Property Type</div>
+      <select id="filterType">
+        <option>All Types</option>
+        <option>House</option>
+        <option>Apartment</option>
+        <option>Villa</option>
+        <option>Condo</option>
+        <option>Land</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <div class="filter-label">Price Range</div>
+      <div class="price-slider">
+        <input type="range" id="priceMin" min="0" max="5000000" step="50000" value="50000">
+        <input type="range" id="priceMax" min="0" max="5000000" step="50000" value="1000000">
+      </div>
+      <div class="price-vals"><span id="priceMinLabel">$50K</span><span id="priceMaxLabel">$1M</span></div>
+    </div>
+    <div class="filter-field">
+      <div class="beds-row">
+        <div>
+          <div class="filter-label">Bedrooms</div>
+          <select id="filterBeds"><option>Any</option><option>1+</option><option>2+</option><option>3+</option><option>4+</option></select>
+        </div>
+        <div>
+          <div class="filter-label">Bathrooms</div>
+          <select id="filterBaths"><option>Any</option><option>1+</option><option>2+</option><option>3+</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="filter-field">
+      <div class="filter-label">More Filters</div>
+      <select><option>None</option><option>Pool</option><option>Garden</option><option>Parking</option><option>Sea view</option></select>
+    </div>
+    <button class="btn-search" id="searchProps">Search Properties</button>
+  </div>
+</aside>
+
+<!-- LAYER TOGGLES -->
+<div id="layer-toggle">
+  <button class="active" title="Globe" data-layer="globe">🌐</button>
+  <button title="Map" data-layer="map">🗺</button>
+  <button title="Satellite" data-layer="sat">🛰</button>
+  <button title="Heatmap" data-layer="heat">🔥</button>
+  <button title="Layers" data-layer="layers">☰</button>
+</div>
+
+<!-- GLOBE CONTROLS -->
+<div id="globe-tools">
+  <button title="Auto Rotate" id="toolRotate" class="active">⟳</button>
+  <button title="Drag" id="toolDrag">✋</button>
+  <button title="Zoom In" id="toolZoomIn">＋</button>
+  <button title="Zoom Out" id="toolZoomOut">−</button>
+  <button title="Fly To Random" id="toolFly">✈</button>
+  <button title="Reset View" id="toolReset">⌂</button>
+</div>
+
+<!-- BOTTOM SECTION -->
+<section id="bottom-section">
+  <div class="bottom-grid">
+    <div>
+      <div class="section-head">
+        <h3>Featured Properties</h3>
+        <div class="arrows">
+          <button id="featPrev">‹</button>
+          <button id="featNext">›</button>
+        </div>
+      </div>
+      <div class="feat-scroll" id="featScroll"></div>
+    </div>
+    <div>
+      <div class="section-head">
+        <h3>Live Activity</h3>
+        <a href="#" class="view-all">View all</a>
+      </div>
+      <div class="live-list" id="liveList">
+        <div class="live-item"><span class="live-dot" style="background:#4db8ff"></span><div>New property in Nairobi<div class="time">2 min ago</div></div></div>
+        <div class="live-item"><span class="live-dot" style="background:#ff5f6d"></span><div>Price drop in Dubai<div class="time">5 min ago</div></div></div>
+        <div class="live-item"><span class="live-dot" style="background:#00e676"></span><div>New message from seller<div class="time">8 min ago</div></div></div>
+        <div class="live-item"><span class="live-dot" style="background:#7c5cff"></span><div>Viewing request accepted<div class="time">12 min ago</div></div></div>
+        <div class="live-item"><span class="live-dot" style="background:#d9b66f"></span><div>New property in Lisbon<div class="time">15 min ago</div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="promo-card">
+        <h4>Experience Properties Like Never Before</h4>
+        <p>Take a 3D tour and explore every detail.</p>
+        <button>Explore 3D Tours</button>
+      </div>
+      <div class="quick-row">
+        <button class="quick-btn"><span>♡</span>Save</button>
+        <button class="quick-btn"><span>⚖</span>Compare</button>
+        <button class="quick-btn"><span>📁</span>Collect</button>
+        <button class="quick-btn"><span>👁</span>Viewing</button>
+        <button class="quick-btn"><span>⌂</span>List</button>
+      </div>
+    </div>
+  </div>
+  <div id="popular">
+    <h4>Popular Destinations</h4>
+    <div class="pop-scroll" id="popScroll"></div>
+  </div>
+</section>
+
+<!-- ========== SELL / LIST PROPERTY PAGE ========== -->
+<div id="sell-page">
+  <div class="sell-wrap">
+    <button type="button" id="sellBack" class="btn-outline" style="margin-bottom:16px">← Back to Explore</button>
+    <h1>List Your Property</h1>
+    <p class="sub">Upload photos, location, ownership documents and license. Verified listings reach buyers worldwide.</p>
+
+    <div class="fee-banner">
+      <div class="fee-amt">$10</div>
+      <div class="fee-txt">
+        <strong style="color:var(--text)">One-time listing fee</strong><br>
+        Covers verification of ownership papers, license check, and publishing on the global 3D map. No monthly charge.
+      </div>
+    </div>
+
+    <form class="sell-form" id="sellForm" onsubmit="return false">
+      <!-- 1. Property details -->
+      <div class="form-card">
+        <h3><span class="step">1</span> Property details</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="sellTitle" placeholder="e.g. 3-Bedroom Villa in Kiyovu" required>
+          </div>
+          <div class="form-group">
+            <label>Property type</label>
+            <select id="sellType">
+              <option>House</option>
+              <option>Apartment</option>
+              <option>Villa</option>
+              <option>Condo</option>
+              <option>Land</option>
+              <option>Commercial</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price (USD)</label>
+            <input type="number" id="sellPrice" placeholder="145000" min="0" required>
+          </div>
+          <div class="form-group">
+            <label>Listing type</label>
+            <select id="sellTxn">
+              <option>For Sale</option>
+              <option>For Rent</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Bedrooms</label>
+            <input type="number" id="sellBeds" min="0" placeholder="3">
+          </div>
+          <div class="form-group">
+            <label>Bathrooms</label>
+            <input type="number" id="sellBaths" min="0" placeholder="2">
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="sellDesc" placeholder="Describe the property, neighborhood, and key features…"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Location -->
+      <div class="form-card">
+        <h3><span class="step">2</span> Location</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Country</label>
+            <input type="text" id="sellCountry" placeholder="e.g. Rwanda" required>
+          </div>
+          <div class="form-group">
+            <label>City / Region</label>
+            <input type="text" id="sellCity" placeholder="e.g. Kigali" required>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Full address</label>
+            <input type="text" id="sellAddress" placeholder="Street, neighborhood, plot number">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Latitude (optional)</label>
+            <input type="text" id="sellLat" placeholder="-1.9441">
+          </div>
+          <div class="form-group">
+            <label>Longitude (optional)</label>
+            <input type="text" id="sellLng" placeholder="30.0619">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Photos -->
+      <div class="form-card">
+        <h3><span class="step">3</span> Property photos</h3>
+        <div class="upload-zone" id="photoZone">
+          <div class="uz-icon">📷</div>
+          <p>Drag & drop photos here, or click to browse</p>
+          <small>JPG, PNG · up to 10 images · max 8 MB each</small>
+          <input type="file" id="photoInput" accept="image/*" multiple>
+        </div>
+        <div class="file-preview" id="photoPreview"></div>
+      </div>
+
+      <!-- 4. Ownership & legal documents -->
+      <div class="form-card">
+        <h3><span class="step">4</span> Ownership & legal documents</h3>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:12px">
+          Upload clear scans or photos of real ownership documents. These are used for verification only and are not shown publicly.
+        </p>
+        <div class="doc-grid">
+          <div class="doc-box" id="docOwnership">
+            <div class="doc-icon">📜</div>
+            <div class="doc-title">Proof of ownership</div>
+            <div class="doc-hint">Title deed / land certificate</div>
+            <input type="file" accept=".pdf,image/*">
+          </div>
+          <div class="doc-box" id="docLicense">
+            <div class="doc-icon">🪪</div>
+            <div class="doc-title">Seller license / ID</div>
+            <div class="doc-hint">National ID or agent license</div>
+            <input type="file" accept=".pdf,image/*">
+          </div>
+          <div class="doc-box" id="docLand">
+            <div class="doc-icon">🗺</div>
+            <div class="doc-title">Land / survey papers</div>
+            <div class="doc-hint">Survey map or plot plan</div>
+            <input type="file" accept=".pdf,image/*">
+          </div>
+          <div class="doc-box" id="docExtra">
+            <div class="doc-icon">📎</div>
+            <div class="doc-title">Other proof</div>
+            <div class="doc-hint">Tax receipt, permit, etc.</div>
+            <input type="file" accept=".pdf,image/*">
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Confirm & pay -->
+      <div class="form-card">
+        <h3><span class="step">5</span> Confirm & pay $10</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">
+          By submitting you confirm that all documents are genuine and that you have the right to list this property.
+          The <strong style="color:var(--gold)">$10 fee</strong> is charged once when you publish. Demo mode does not process real payments.
+        </p>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--muted);cursor:pointer">
+          <input type="checkbox" id="sellAgree" style="margin-top:2px">
+          <span>I confirm the ownership documents and license are authentic, and I agree to the listing terms.</span>
+        </label>
+      </div>
+
+      <div class="sell-actions">
+        <button type="button" class="btn-outline" id="sellCancel">Cancel</button>
+        <button type="button" class="btn-pay" id="sellSubmit">Pay $10 &amp; Publish Listing</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ========== DATA ========== */
+const MARKERS = [
+  {name:'Portugal',flag:'🇵🇹',lat:39.4,lng:-8.2,count:'12.4K',props:125430,avg:'€285,000',
+   cities:['Lisbon','Porto','Algarve','Braga'],
+   types:[{n:'Apartments',p:45,c:'#4db8ff'},{n:'Houses',p:30,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'United Kingdom',flag:'🇬🇧',lat:51.5,lng:-0.1,count:'8.7K',props:87200,avg:'£610,000',
+   cities:['London','Manchester','Edinburgh','Bristol'],
+   types:[{n:'Apartments',p:40,c:'#4db8ff'},{n:'Houses',p:35,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'United Arab Emirates',flag:'🇦🇪',lat:25.2,lng:55.3,count:'15.3K',props:153000,avg:'$455,000',
+   cities:['Dubai','Abu Dhabi','Sharjah'],
+   types:[{n:'Apartments',p:55,c:'#4db8ff'},{n:'Houses',p:20,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:5,c:'#ff8a65'}]},
+  {name:'United States',flag:'🇺🇸',lat:40.7,lng:-74.0,count:'2.1K',props:21400,avg:'$420,000',
+   cities:['New York','Miami','Los Angeles','Chicago'],
+   types:[{n:'Apartments',p:35,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'Kenya',flag:'🇰🇪',lat:-1.3,lng:36.8,count:'4.2K',props:42100,avg:'$145,000',
+   cities:['Nairobi','Mombasa','Kisumu'],
+   types:[{n:'Apartments',p:30,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'Nigeria',flag:'🇳🇬',lat:6.5,lng:3.4,count:'7.8K',props:78400,avg:'$268,000',
+   cities:['Lagos','Abuja','Port Harcourt'],
+   types:[{n:'Apartments',p:25,c:'#4db8ff'},{n:'Houses',p:45,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'South Africa',flag:'🇿🇦',lat:-26.2,lng:28.0,count:'1.2K',props:12300,avg:'$198,000',
+   cities:['Johannesburg','Cape Town','Durban'],
+   types:[{n:'Apartments',p:30,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'Japan',flag:'🇯🇵',lat:35.7,lng:139.7,count:'3.4K',props:34200,avg:'$390,000',
+   cities:['Tokyo','Osaka','Kyoto'],
+   types:[{n:'Apartments',p:60,c:'#4db8ff'},{n:'Houses',p:25,c:'#00e676'},{n:'Villas',p:10,c:'#d9b66f'},{n:'Land',p:5,c:'#ff8a65'}]},
+  {name:'France',flag:'🇫🇷',lat:48.9,lng:2.3,count:'5.1K',props:51200,avg:'€470,000',
+   cities:['Paris','Lyon','Nice','Marseille'],
+   types:[{n:'Apartments',p:50,c:'#4db8ff'},{n:'Houses',p:25,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
+  {name:'Rwanda',flag:'🇷🇼',lat:-1.94,lng:30.06,count:'0.8K',props:8120,avg:'$132,000',
+   cities:['Kigali','Musanze','Huye'],
+   types:[{n:'Apartments',p:25,c:'#4db8ff'},{n:'Houses',p:45,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]}
+];
+
+const FEATURED = [
+  {title:'Modern Villa with Ocean View',loc:'Lagos, Portugal',price:'€1,850,000',beds:4,baths:4,area:'320 m²',badge:'FEATURED',badgeClass:'featured',
+   img:'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=500&q=80',tour:true},
+  {title:'Luxury Apartment in City Center',loc:'Dubai, UAE',price:'$750,000',beds:2,baths:3,area:'120 m²',badge:'NEW',badgeClass:'new',
+   img:'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=500&q=80',tour:true},
+  {title:'Family House with Garden',loc:'Nairobi, Kenya',price:'$450,000',old:'$500,000',beds:3,baths:2,area:'200 m²',badge:'PRICE DROP',badgeClass:'drop',
+   img:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',tour:false},
+  {title:'Penthouse in Downtown',loc:'New York, USA',price:'$2,950,000',beds:3,baths:3,area:'180 m²',badge:'VERIFIED',badgeClass:'verified',
+   img:'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=500&q=80',tour:true}
+];
+
+const DESTINATIONS = [
+  {name:'Dubai',count:'23,456',img:'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80',lat:25.2,lng:55.3},
+  {name:'London',count:'18,923',img:'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=300&q=80',lat:51.5,lng:-0.1},
+  {name:'New York',count:'15,678',img:'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=300&q=80',lat:40.7,lng:-74},
+  {name:'Kigali',count:'4,567',img:'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?auto=format&fit=crop&w=300&q=80',lat:-1.94,lng:30.06},
+  {name:'Paris',count:'12,345',img:'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80',lat:48.9,lng:2.3},
+  {name:'Tokyo',count:'9,876',img:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=300&q=80',lat:35.7,lng:139.7}
+];
+
+/* ========== GLOBE ========== */
+let globe, controls, autoRotate = true;
+let hoveredCountry = null;
+
+// Country name labels shown on the globe (exact names)
+const COUNTRY_LABELS = [
+  {name:'Portugal',lat:39.5,lng:-8.0},
+  {name:'Spain',lat:40.4,lng:-3.7},
+  {name:'France',lat:46.6,lng:2.4},
+  {name:'United Kingdom',lat:54.0,lng:-2.5},
+  {name:'Germany',lat:51.2,lng:10.4},
+  {name:'Italy',lat:42.8,lng:12.5},
+  {name:'Nigeria',lat:9.1,lng:8.7},
+  {name:'Kenya',lat:0.5,lng:37.9},
+  {name:'South Africa',lat:-29.0,lng:25.0},
+  {name:'Egypt',lat:26.8,lng:30.8},
+  {name:'Rwanda',lat:-2.0,lng:30.0},
+  {name:'United Arab Emirates',lat:24.0,lng:54.5},
+  {name:'India',lat:22.0,lng:79.0},
+  {name:'China',lat:35.0,lng:105.0},
+  {name:'Japan',lat:36.2,lng:138.3},
+  {name:'Australia',lat:-25.0,lng:134.0},
+  {name:'Brazil',lat:-10.0,lng:-55.0},
+  {name:'United States',lat:39.5,lng:-98.5},
+  {name:'Canada',lat:56.0,lng:-106.0},
+  {name:'Mexico',lat:23.6,lng:-102.5},
+  {name:'Argentina',lat:-35.0,lng:-65.0},
+  {name:'Russia',lat:61.5,lng:105.0},
+  {name:'Turkey',lat:39.0,lng:35.0},
+  {name:'Saudi Arabia',lat:24.0,lng:45.0},
+  {name:'Indonesia',lat:-2.5,lng:118.0},
+  {name:'Thailand',lat:15.0,lng:101.0},
+  {name:'Morocco',lat:32.0,lng:-6.0},
+  {name:'Ghana',lat:7.9,lng:-1.0},
+  {name:'Ethiopia',lat:9.1,lng:40.5},
+  {name:'Tanzania',lat:-6.4,lng:34.9}
+];
+
+function centroidOf(feature) {
+  let ring = feature.geometry.coordinates[0];
+  if (feature.geometry.type === 'MultiPolygon') ring = feature.geometry.coordinates[0][0];
+  if (!ring || !ring.length) return { lat: 0, lng: 0 };
+  const lats = ring.map(c => c[1]);
+  const lngs = ring.map(c => c[0]);
+  return {
+    lat: lats.reduce((a, b) => a + b, 0) / lats.length,
+    lng: lngs.reduce((a, b) => a + b, 0) / lngs.length
+  };
+}
+
+function findMarkerForCountry(name) {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  return MARKERS.find(m => {
+    const mn = m.name.toLowerCase();
+    return n === mn || n.includes(mn) || mn.includes(n) ||
+      n.includes(mn.split(' ')[0]) || mn.includes(n.split(' ')[0]);
+  });
+}
+
+function initGlobe() {
+  const el = document.getElementById('globe');
+  if (typeof Globe === 'undefined') {
+    el.innerHTML = '<div style="display:grid;place-items:center;height:100%;color:#7d9abd;font-size:14px">Loading 3D Earth… check internet connection</div>';
+    return;
+  }
+
+  globe = Globe()(el)
+    .backgroundColor('rgba(0,0,0,0)')
+    .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg')
+    .bumpImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png')
+    .backgroundImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
+    .showAtmosphere(true)
+    .atmosphereColor('#4db8ff')
+    .atmosphereAltitude(0.17)
+    // Property count markers + country names under them
+    .pointsData(MARKERS)
+    .pointLat('lat').pointLng('lng')
+    .pointColor(() => '#00f0ff')
+    .pointAltitude(0.018)
+    .pointRadius(0.5)
+    .pointLabel(d => `<b style="font-size:13px">${d.name}</b><br>${d.count} properties · ${d.avg}`)
+    .onPointClick(d => showLocation(d))
+    .onPointHover(d => { el.style.cursor = d ? 'pointer' : 'grab'; })
+    .htmlElementsData(MARKERS)
+    .htmlLat('lat').htmlLng('lng')
+    .htmlAltitude(0.04)
+    .htmlElement(d => {
+      const div = document.createElement('div');
+      div.className = 'marker-label';
+      div.innerHTML = `<span class="marker-count">${d.count}</span><span class="marker-name">${d.name}</span>`;
+      div.style.pointerEvents = 'none';
+      return div;
+    })
+    // Extra country NAME labels across the globe
+    .labelsData(COUNTRY_LABELS)
+    .labelLat('lat').labelLng('lng')
+    .labelText('name')
+    .labelSize(0.5)
+    .labelColor(() => 'rgba(210,230,255,0.9)')
+    .labelDotRadius(0)
+    .labelAltitude(0.01)
+    .labelResolution(2);
+
+  // Country polygons — hover highlight + click for property info
+  fetch('https://cdn.jsdelivr.net/npm/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson')
+    .then(r => r.json())
+    .then(gj => {
+      const countries = gj.features.filter(f => f.properties.ISO_A2 !== 'AQ');
+      globe.polygonsData(countries)
+        .polygonCapColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.2)' : 'rgba(77,184,255,.04)')
+        .polygonSideColor(() => 'rgba(0,50,100,.1)')
+        .polygonStrokeColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.75)' : 'rgba(140,200,255,.25)')
+        .polygonAltitude(d => d === hoveredCountry ? 0.016 : 0.004)
+        .polygonLabel(d => {
+          const name = d.properties.ADMIN || d.properties.NAME || '';
+          const m = findMarkerForCountry(name);
+          if (m) return `<b>${name}</b><br>${m.count} properties · avg ${m.avg}<br><i>Click for details</i>`;
+          return `<b>${name}</b><br>Click to explore`;
+        })
+        .onPolygonHover(poly => {
+          hoveredCountry = poly || null;
+          el.style.cursor = poly ? 'pointer' : 'grab';
+          globe
+            .polygonCapColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.2)' : 'rgba(77,184,255,.04)')
+            .polygonStrokeColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.75)' : 'rgba(140,200,255,.25)')
+            .polygonAltitude(d => d === hoveredCountry ? 0.016 : 0.004);
+        })
+        .onPolygonClick(poly => {
+          if (!poly) return;
+          const name = poly.properties.ADMIN || poly.properties.NAME || '';
+          const match = findMarkerForCountry(name);
+          if (match) showLocation(match);
+          else showGenericCountry(poly);
+        });
+    }).catch(() => {});
+
+  controls = globe.controls();
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.32;
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enablePan = false;
+  controls.minDistance = 120;
+  controls.maxDistance = 480;
+  globe.pointOfView({ lat: 12, lng: 15, altitude: 2.05 }, 0);
+
+  globe.width(el.clientWidth).height(el.clientHeight);
+
+  el.addEventListener('pointerdown', () => {
+    if (controls.autoRotate) {
+      controls.autoRotate = false;
+      autoRotate = false;
+      document.getElementById('toolRotate').classList.remove('active');
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', () => {
+    if (globe) globe.width(el.clientWidth).height(el.clientHeight);
+  });
+}
+
+function showLocation(d) {
+  document.getElementById('loc-flag').textContent = d.flag;
+  document.getElementById('loc-name').textContent = d.name;
+  document.getElementById('loc-count').innerHTML = d.props.toLocaleString() + ' <small>Properties</small>';
+  document.getElementById('loc-avg').textContent = d.avg;
+  document.getElementById('loc-cities').innerHTML = d.cities.map(c => `<span>${c}</span>`).join('');
+  document.getElementById('loc-types').innerHTML = d.types.map(t =>
+    `<div class="loc-type"><span style="width:65px">${t.n}</span><div class="bar"><i style="width:${t.p}%;background:${t.c}"></i></div><span class="pct">${t.p}%</span></div>`
+  ).join('');
+  document.getElementById('locExplore').textContent = 'Explore ' + d.name;
+  document.getElementById('loc-popup').classList.add('show');
+
+  if (globe && controls) {
+    controls.autoRotate = false;
+    autoRotate = false;
+    document.getElementById('toolRotate').classList.remove('active');
+    globe.pointOfView({ lat: d.lat, lng: d.lng, altitude: 1.3 }, 1100);
+  }
+}
+
+function showGenericCountry(feature) {
+  const name = feature.properties.ADMIN || feature.properties.NAME || 'Country';
+  const c = centroidOf(feature);
+  const pop = feature.properties.POP_EST
+    ? Number(feature.properties.POP_EST).toLocaleString()
+    : '—';
+  const capital = feature.properties.CAPITAL || '—';
+
+  document.getElementById('loc-flag').textContent = '🌍';
+  document.getElementById('loc-name').textContent = name;
+  document.getElementById('loc-count').innerHTML = 'Coming soon <small>Properties</small>';
+  document.getElementById('loc-avg').textContent = '—';
+  document.getElementById('loc-cities').innerHTML =
+    `<span>Capital: ${capital}</span><span>Pop: ${pop}</span>`;
+  document.getElementById('loc-types').innerHTML =
+    '<div style="font-size:11px;color:var(--muted);line-height:1.5;padding:4px 0">No mapped listings yet for this country.<br>Try a highlighted market: Portugal, UAE, Kenya, UK…</div>';
+  document.getElementById('locExplore').textContent = 'Close';
+  document.getElementById('loc-popup').classList.add('show');
+
+  if (globe && controls) {
+    controls.autoRotate = false;
+    autoRotate = false;
+    document.getElementById('toolRotate').classList.remove('active');
+    globe.pointOfView({ lat: c.lat, lng: c.lng, altitude: 1.4 }, 1100);
+  }
+}
+
+function hideLocation() {
+  document.getElementById('loc-popup').classList.remove('show');
+}
+
+/* ========== UI BUILD ========== */
+function buildFeatured() {
+  document.getElementById('featScroll').innerHTML = FEATURED.map(p => `
+    <div class="feat-card">
+      <div class="feat-img" style="background-image:url('${p.img}')">
+        <span class="feat-badge ${p.badgeClass}">${p.badge}</span>
+        <span class="feat-heart">♡</span>
+        ${p.tour ? '<span class="feat-tour">360° Tour</span>' : ''}
+      </div>
+      <div class="feat-body">
+        <h4>${p.title}</h4>
+        <div class="loc">${p.loc}</div>
+        <div class="price">${p.price}${p.old ? ' <small style="text-decoration:line-through;color:var(--muted);font-weight:400;font-size:9px">' + p.old + '</small>' : ''}</div>
+        <div class="meta"><span>${p.beds} Beds</span><span>${p.baths} Baths</span><span>${p.area}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function buildDestinations() {
+  const el = document.getElementById('popScroll');
+  el.innerHTML = DESTINATIONS.map(d => `
+    <div class="pop-card" style="background-image:url('${d.img}')" data-lat="${d.lat}" data-lng="${d.lng}" data-name="${d.name}">
+      <div class="info"><b>${d.name}</b><span>${d.count} Properties</span></div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.pop-card').forEach(card => {
+    card.onclick = () => {
+      const lat = +card.dataset.lat, lng = +card.dataset.lng;
+      const match = MARKERS.find(m => m.name === card.dataset.name || Math.abs(m.lat - lat) < 3);
+      if (match) showLocation(match);
+      else if (globe) {
+        controls.autoRotate = false;
+        autoRotate = false;
+        document.getElementById('toolRotate').classList.remove('active');
+        globe.pointOfView({ lat, lng, altitude: 1.25 }, 1000);
+      }
+    };
+  });
+}
+
+/* ========== EVENTS ========== */
+document.getElementById('locClose').onclick = hideLocation;
+document.getElementById('locExplore').onclick = hideLocation;
+
+// Click outside popup closes it
+document.addEventListener('pointerdown', e => {
+  const popup = document.getElementById('loc-popup');
+  if (popup.classList.contains('show') && !popup.contains(e.target) && !e.target.closest('.marker-label')) {
+    // only close if click is not on a point (globe handles points)
+    if (!e.target.closest('#globe')) hideLocation();
+  }
+});
+
+document.getElementById('toolReset').onclick = () => {
+  hideLocation();
+  if (!globe) return;
+  globe.pointOfView({ lat: 12, lng: 15, altitude: 2.05 }, 900);
+  controls.autoRotate = true;
+  autoRotate = true;
+  document.getElementById('toolRotate').classList.add('active');
+};
+
+document.getElementById('toolRotate').onclick = function () {
+  autoRotate = !autoRotate;
+  if (controls) controls.autoRotate = autoRotate;
+  this.classList.toggle('active', autoRotate);
+};
+
+document.getElementById('toolFly').onclick = () => {
+  const r = MARKERS[Math.floor(Math.random() * MARKERS.length)];
+  showLocation(r);
+};
+
+document.getElementById('toolZoomIn').onclick = () => {
+  if (!globe) return;
+  const p = globe.pointOfView();
+  globe.pointOfView({ ...p, altitude: Math.max(0.7, p.altitude * 0.75) }, 400);
+};
+document.getElementById('toolZoomOut').onclick = () => {
+  if (!globe) return;
+  const p = globe.pointOfView();
+  globe.pointOfView({ ...p, altitude: Math.min(3.5, p.altitude * 1.3) }, 400);
+};
+
+function fmtPrice(v) {
+  if (v >= 1000000) return '$' + (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + 'M';
+  return '$' + Math.round(v / 1000) + 'K';
+}
+const pMin = document.getElementById('priceMin');
+const pMax = document.getElementById('priceMax');
+function updatePriceLabels() {
+  let a = +pMin.value, b = +pMax.value;
+  if (a > b) [a, b] = [b, a];
+  document.getElementById('priceMinLabel').textContent = fmtPrice(a);
+  document.getElementById('priceMaxLabel').textContent = fmtPrice(b);
+}
+pMin.oninput = pMax.oninput = updatePriceLabels;
+
+document.querySelectorAll('.filter-tabs button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.filter-tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+});
+
+document.querySelectorAll('#layer-toggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#layer-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (!globe) return;
+    const layer = btn.dataset.layer;
+    if (layer === 'sat') {
+      globe.globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg');
+    } else {
+      globe.globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg');
+    }
+  };
+});
+
+document.getElementById('featPrev').onclick = () => {
+  document.getElementById('featScroll').scrollBy({ left: -190, behavior: 'smooth' });
+};
+document.getElementById('featNext').onclick = () => {
+  document.getElementById('featScroll').scrollBy({ left: 190, behavior: 'smooth' });
+};
+
+document.getElementById('searchProps').onclick = () => {
+  const q = document.getElementById('filterLoc').value.trim().toLowerCase();
+  if (!q) return;
+  const match = MARKERS.find(m =>
+    m.name.toLowerCase().includes(q) || m.cities.some(c => c.toLowerCase().includes(q))
+  );
+  if (match) showLocation(match);
+};
+
+document.getElementById('topSearch').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim().toLowerCase();
+  const match = MARKERS.find(m =>
+    m.name.toLowerCase().includes(q) || m.cities.some(c => c.toLowerCase().includes(q))
+  );
+  if (match) showLocation(match);
+});
+
+/* ========== PROFILE (Buyer / Seller) & SELL PAGE ========== */
+const UserState = {
+  role: localStorage.getItem('hc_role') || 'buyer',
+  name: 'Sarah Johnson',
+  email: 'sarah.j@email.com'
+};
+
+function setRole(role) {
+  UserState.role = role;
+  localStorage.setItem('hc_role', role);
+  document.body.classList.remove('role-buyer', 'role-seller');
+  document.body.classList.add('role-' + role);
+  const badge = role === 'seller'
+    ? '<span class="role-badge seller">Seller</span>'
+    : '<span class="role-badge buyer">Buyer</span>';
+  document.getElementById('profileRoleLabel').innerHTML = badge;
+  document.getElementById('roleBuyer').classList.toggle('active', role === 'buyer');
+  document.getElementById('roleSeller').classList.toggle('active', role === 'seller');
+  document.querySelectorAll('.seller-only').forEach(el => {
+    el.style.display = role === 'seller' ? 'flex' : 'none';
+  });
+}
+
+function openSellPage() {
+  document.getElementById('sell-page').classList.add('show');
+  document.getElementById('profileMenu').classList.remove('show');
+  window.scrollTo(0, 0);
+}
+
+function closeSellPage() {
+  document.getElementById('sell-page').classList.remove('show');
+}
+
+document.getElementById('profileBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('profileMenu').classList.toggle('show');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#profileBtn')) {
+    document.getElementById('profileMenu').classList.remove('show');
+  }
+});
+
+document.getElementById('roleBuyer').onclick = e => { e.stopPropagation(); setRole('buyer'); };
+document.getElementById('roleSeller').onclick = e => { e.stopPropagation(); setRole('seller'); };
+
+document.getElementById('navSell').onclick = e => { e.preventDefault(); openSellPage(); };
+document.getElementById('btnListProperty').onclick = e => { e.preventDefault(); openSellPage(); };
+document.querySelectorAll('[data-page="sell"]').forEach(el => {
+  el.addEventListener('click', e => { e.preventDefault(); openSellPage(); });
+});
+document.querySelectorAll('[data-page="explore"]').forEach(el => {
+  el.addEventListener('click', e => { e.preventDefault(); closeSellPage(); });
+});
+document.getElementById('sellBack').onclick = closeSellPage;
+document.getElementById('sellCancel').onclick = closeSellPage;
+
+// Photo upload
+const photoZone = document.getElementById('photoZone');
+const photoInput = document.getElementById('photoInput');
+const photoPreview = document.getElementById('photoPreview');
+let photoFiles = [];
+
+photoZone.addEventListener('click', () => photoInput.click());
+photoZone.addEventListener('dragover', e => { e.preventDefault(); photoZone.classList.add('drag'); });
+photoZone.addEventListener('dragleave', () => photoZone.classList.remove('drag'));
+photoZone.addEventListener('drop', e => {
+  e.preventDefault();
+  photoZone.classList.remove('drag');
+  addPhotos(e.dataTransfer.files);
+});
+photoInput.addEventListener('change', () => addPhotos(photoInput.files));
+
+function addPhotos(fileList) {
+  Array.from(fileList).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    if (photoFiles.length >= 10) return;
+    photoFiles.push(f);
+  });
+  renderPhotoPreview();
+}
+function renderPhotoPreview() {
+  photoPreview.innerHTML = photoFiles.map((f, i) =>
+    `<span class="file-chip">${f.name.slice(0, 18)}${f.name.length > 18 ? '…' : ''} <button type="button" data-i="${i}">×</button></span>`
+  ).join('');
+  photoPreview.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => {
+      photoFiles.splice(+btn.dataset.i, 1);
+      renderPhotoPreview();
+    };
+  });
+}
+
+// Document boxes
+document.querySelectorAll('.doc-box').forEach(box => {
+  const input = box.querySelector('input[type=file]');
+  box.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    if (input.files[0]) {
+      box.classList.add('filled');
+      box.querySelector('.doc-hint').textContent = input.files[0].name.slice(0, 22) + (input.files[0].name.length > 22 ? '…' : '');
+    }
+  });
+});
+
+// Submit listing ($10 fee — demo)
+document.getElementById('sellSubmit').onclick = () => {
+  const title = document.getElementById('sellTitle').value.trim();
+  const country = document.getElementById('sellCountry').value.trim();
+  const city = document.getElementById('sellCity').value.trim();
+  const agree = document.getElementById('sellAgree').checked;
+  const ownership = document.querySelector('#docOwnership input').files[0];
+  const license = document.querySelector('#docLicense input').files[0];
+
+  if (!title || !country || !city) {
+    alert('Please fill in title, country and city.');
+    return;
+  }
+  if (!ownership || !license) {
+    alert('Proof of ownership and seller license / ID are required.');
+    return;
+  }
+  if (!agree) {
+    alert('Please confirm that your documents are authentic.');
+    return;
+  }
+  if (photoFiles.length < 1) {
+    alert('Please upload at least one property photo.');
+    return;
+  }
+
+  const btn = document.getElementById('sellSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Processing $10…';
+  setTimeout(() => {
+    btn.textContent = 'Published ✓';
+    btn.style.background = 'linear-gradient(135deg,#00e676,#00c853)';
+    btn.style.color = '#fff';
+    alert('Listing submitted!\n\n$10 fee recorded (demo).\nYour property will appear on the map after document verification.\n\n' + title + ' · ' + city + ', ' + country);
+    setTimeout(() => {
+      closeSellPage();
+      btn.disabled = false;
+      btn.textContent = 'Pay $10 & Publish Listing';
+      btn.style.background = '';
+      btn.style.color = '';
+      document.getElementById('sellForm').reset();
+      photoFiles = [];
+      renderPhotoPreview();
+      document.querySelectorAll('.doc-box').forEach(b => {
+        b.classList.remove('filled');
+        const hint = b.querySelector('.doc-hint');
+        if (hint && hint.dataset.orig) hint.textContent = hint.dataset.orig;
+      });
+    }, 1200);
+  }, 900);
+};
+
+document.querySelectorAll('.doc-box .doc-hint').forEach(h => { h.dataset.orig = h.textContent; });
+
+// Boot
+setRole(UserState.role);
+buildFeatured();
+buildDestinations();
+initGlobe();
+</script>
+</body>
+</html>

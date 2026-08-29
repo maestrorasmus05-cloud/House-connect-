@@ -10,7 +10,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/globe.gl@2.41.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
+<script>
+/* =========================================================================
+   HOUSECONNECT CONFIG — fill these in with your own Supabase project.
+   Only the PUBLIC anon key belongs here. Never put a service-role key,
+   a Stripe secret key, or a webhook signing secret in this file.
+   ========================================================================= */
+window.HC_CONFIG = {
+  SUPABASE_URL: 'https://YOUR-PROJECT-REF.supabase.co',
+  SUPABASE_ANON_KEY: 'YOUR-PUBLIC-ANON-KEY'
+};
+</script>
 <style>
 :root{
   --bg:#03050c;
@@ -498,10 +508,118 @@ body.role-buyer .buyer-only{display:flex}
   .profile-info{display:none}
   .form-row,.doc-grid{grid-template-columns:1fr}
 }
+
+/* ===== MODALS (auth / account / saved / stub) ===== */
+.modal-overlay{
+  position:fixed;inset:0;z-index:500;background:rgba(2,4,10,.7);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;padding:24px;overflow-y:auto;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  width:min(480px,100%);background:var(--panel2);border:1px solid var(--line);border-radius:18px;
+  box-shadow:0 24px 80px rgba(0,0,0,.55);overflow:hidden;
+}
+.modal-box.wide{width:min(720px,100%)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line2)}
+.modal-head h2{font-family:"Space Grotesk";font-size:16px}
+.modal-head .close-btn{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid var(--line2);color:var(--muted);font-size:16px;display:grid;place-items:center}
+.modal-head .close-btn:hover{color:var(--danger);border-color:var(--danger);background:rgba(255,95,109,.15)}
+.modal-body{padding:20px}
+.modal-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;margin:0 20px 4px;background:rgba(0,0,0,.25);border:1px solid var(--line2);border-radius:12px}
+.modal-tabs button{border:0;background:transparent;color:var(--muted);padding:10px;border-radius:9px;font-size:12px;font-weight:600}
+.modal-tabs button.active{background:rgba(0,240,255,.12);color:var(--cyan)}
+.modal-msg{min-height:20px;margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5}
+.modal-msg.err{color:#ff9ea9}
+.modal-msg.ok{color:#65e6a8}
+.avatar-row{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.avatar-lg{width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--cyan);background:#0a151b;display:grid;place-items:center;font-size:22px;font-weight:800;color:var(--cyan)}
+.avatar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.avatar-actions button{padding:7px 12px;border-radius:8px;font-size:11px;font-weight:600;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--text)}
+.avatar-actions button:hover{border-color:var(--cyan);color:var(--cyan)}
+.avatar-actions button.danger{color:var(--danger);border-color:rgba(255,95,109,.35)}
+.saved-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-height:60vh;overflow-y:auto}
+.saved-empty,.stub-note{font-size:13px;color:var(--muted);line-height:1.6;text-align:center;padding:20px 6px}
+@media(max-width:560px){.saved-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div id="app">
+
+<!-- AUTH MODAL (sign in / create account / forgot password) -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Sign in to HouseConnect</h2><button class="close-btn" id="authClose">×</button></div>
+    <div class="modal-tabs">
+      <button class="active" id="authTabLogin">Sign in</button>
+      <button id="authTabSignup">Create account</button>
+    </div>
+    <div class="modal-body">
+      <form id="loginForm">
+        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" autocomplete="email" required></div>
+        <div class="form-group"><label>Password</label><input type="password" id="loginPassword" autocomplete="current-password" minlength="6" required></div>
+        <button type="submit" class="btn-search" style="margin-top:4px">Sign in securely</button>
+        <button type="button" class="btn-outline" style="width:100%;margin-top:8px" id="forgotBtn">Forgot password?</button>
+        <div id="loginMsg" class="modal-msg"></div>
+      </form>
+      <form id="signupForm" class="hidden" style="display:none">
+        <div class="form-group"><label>Full name</label><input type="text" id="signupName" autocomplete="name" required></div>
+        <div class="form-group"><label>Email</label><input type="email" id="signupEmail" autocomplete="email" required></div>
+        <div class="form-group"><label>Password (min 8 characters)</label><input type="password" id="signupPassword" autocomplete="new-password" minlength="8" required></div>
+        <button type="submit" class="btn-search" style="margin-top:4px">Create account</button>
+        <div id="signupMsg" class="modal-msg"></div>
+      </form>
+      <p style="font-size:10px;color:var(--muted);margin-top:14px;line-height:1.5">Only the public Supabase key is used in this page. Your session is stored securely by Supabase and restored automatically when you return.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ACCOUNT MODAL (profile + avatar + role) -->
+<div class="modal-overlay" id="accountModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2>Account settings</h2><button class="close-btn" id="accountClose">×</button></div>
+    <div class="modal-body">
+      <div class="avatar-row">
+        <img class="avatar-lg" id="accAvatarImg" alt="Avatar">
+        <div class="avatar-actions">
+          <button type="button" id="accUploadBtn">Upload photo</button>
+          <button type="button" id="accRemoveBtn" class="danger">Remove photo</button>
+          <input type="file" id="accAvatarFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div class="form-group"><label>Full name</label><input type="text" id="accName"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="accEmail" disabled></div>
+      <div class="form-group">
+        <label>Role</label>
+        <div class="role-switch" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button type="button" id="accBuyerBtn" class="btn-outline">👤 Buyer</button>
+          <button type="button" id="accSellerBtn" class="btn-outline">🏠 Seller</button>
+        </div>
+      </div>
+      <button type="button" class="btn-search" id="accSave">Save profile</button>
+      <div id="accMsg" class="modal-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED PROPERTIES MODAL -->
+<div class="modal-overlay" id="savedModal">
+  <div class="modal-box wide">
+    <div class="modal-head"><h2>Saved properties</h2><button class="close-btn" id="savedClose">×</button></div>
+    <div class="modal-body">
+      <div class="saved-grid" id="savedGrid"><div class="saved-empty">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- GENERIC "COMING NEXT" MODAL for features not yet wired to real data in this build -->
+<div class="modal-overlay" id="stubModal">
+  <div class="modal-box">
+    <div class="modal-head"><h2 id="stubTitle">Coming next</h2><button class="close-btn" id="stubClose">×</button></div>
+    <div class="modal-body">
+      <p class="stub-note" id="stubNote"></p>
+    </div>
+  </div>
+</div>
 
 <!-- TOP NAV -->
 <header id="topbar">
@@ -526,29 +644,30 @@ body.role-buyer .buyer-only{display:flex}
       <span style="opacity:.5;font-size:12px">⌕</span>
       <input type="text" placeholder="Search anything..." id="topSearch">
     </div>
-    <button class="icon-btn" title="Notifications">🔔<span class="badge-dot"></span></button>
-    <button class="icon-btn" title="Messages">✉</button>
-    <div class="profile" id="profileBtn">
-      <img src="https://i.pravatar.cc/80?img=47" alt="Sarah" id="profileAvatar">
+    <button class="icon-btn" title="Notifications" id="navNotifications" data-guard="stub:Notifications">🔔<span class="badge-dot" id="notifDot" style="display:none"></span></button>
+    <button class="icon-btn" title="Messages" id="navMessagesIcon" data-guard="stub:Messages">✉</button>
+    <button class="secondary" id="btnSignIn" style="border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:20px;padding:8px 16px;font-size:12px;font-weight:600;color:var(--cyan)">Sign in</button>
+    <div class="profile" id="profileBtn" style="display:none">
+      <img src="" alt="Avatar" id="profileAvatar">
       <div class="profile-info">
-        <b id="profileName">Sarah Johnson</b>
+        <b id="profileName">—</b>
         <span id="profileRoleLabel"><span class="role-badge buyer">Buyer</span></span>
       </div>
       <span style="color:var(--muted);font-size:10px">▾</span>
       <div class="profile-menu" id="profileMenu">
         <div class="pm-head">
-          <b id="pmName">Sarah Johnson</b>
-          <span id="pmEmail">sarah.j@email.com</span>
+          <b id="pmName">—</b>
+          <span id="pmEmail"></span>
         </div>
         <div class="pm-role">
           <button type="button" class="active" data-role="buyer" id="roleBuyer">👤 Buyer</button>
           <button type="button" data-role="seller" id="roleSeller">🏠 Seller</button>
         </div>
         <a href="#" data-page="sell" class="seller-only" style="display:none"><span>📤</span> List a Property</a>
-        <a href="#"><span>🔖</span> Saved Properties</a>
-        <a href="#"><span>📊</span> Dashboard</a>
-        <a href="#"><span>⚙</span> Settings</a>
-        <button type="button" class="pm-item" style="color:var(--danger)"><span>↩</span> Sign out</button>
+        <a href="#" id="pmSaved"><span>🔖</span> Saved Properties</a>
+        <a href="#" id="pmDashboard"><span>📊</span> Dashboard</a>
+        <a href="#" id="pmAccount"><span>⚙</span> Account settings</a>
+        <button type="button" class="pm-item" id="pmSignOut" style="color:var(--danger)"><span>↩</span> Sign out</button>
       </div>
     </div>
   </div>
@@ -557,13 +676,13 @@ body.role-buyer .buyer-only{display:flex}
 <!-- LEFT SIDEBAR -->
 <aside id="sidebar">
   <a class="side-item active" href="#" data-page="explore"><span class="icon">🌐</span> Explore World</a>
-  <a class="side-item" href="#"><span class="icon">🔖</span> Saved Properties</a>
-  <a class="side-item" href="#"><span class="icon">⚖</span> Comparisons</a>
-  <a class="side-item" href="#"><span class="icon">📁</span> Collections</a>
-  <a class="side-item" href="#"><span class="icon">💬</span> Messages <span class="count">3</span></a>
-  <a class="side-item" href="#"><span class="icon">👁</span> Viewing Requests</a>
-  <a class="side-item" href="#"><span class="icon">📊</span> Dashboard</a>
-  <a class="side-item" href="#"><span class="icon">⚙</span> Settings</a>
+  <a class="side-item" href="#" id="navSaved" data-guard="saved"><span class="icon">🔖</span> Saved Properties</a>
+  <a class="side-item" href="#" id="navCompare" data-guard="stub:Comparisons"><span class="icon">⚖</span> Comparisons</a>
+  <a class="side-item" href="#" id="navCollections" data-guard="stub:Collections"><span class="icon">📁</span> Collections</a>
+  <a class="side-item" href="#" id="navMessages" data-guard="stub:Messages"><span class="icon">💬</span> Messages <span class="count" id="msgCount" style="display:none">0</span></a>
+  <a class="side-item" href="#" id="navViewing" data-guard="stub:Viewing Requests"><span class="icon">👁</span> Viewing Requests</a>
+  <a class="side-item" href="#" id="navDashboard" data-guard="dashboard"><span class="icon">📊</span> Dashboard</a>
+  <a class="side-item" href="#" id="navSettings" data-guard="account"><span class="icon">⚙</span> Settings</a>
   <div class="side-promo">
     <h4>List Your Property</h4>
     <p>Upload photos, ownership papers & list worldwide. Only $10.</p>
@@ -909,97 +1028,517 @@ body.role-buyer .buyer-only{display:flex}
 </div>
 
 <script>
-/* ========== DATA ========== */
-const MARKERS = [
-  {name:'Portugal',flag:'🇵🇹',lat:39.4,lng:-8.2,count:'12.4K',props:125430,avg:'€285,000',
-   cities:['Lisbon','Porto','Algarve','Braga'],
-   types:[{n:'Apartments',p:45,c:'#4db8ff'},{n:'Houses',p:30,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'United Kingdom',flag:'🇬🇧',lat:51.5,lng:-0.1,count:'8.7K',props:87200,avg:'£610,000',
-   cities:['London','Manchester','Edinburgh','Bristol'],
-   types:[{n:'Apartments',p:40,c:'#4db8ff'},{n:'Houses',p:35,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'United Arab Emirates',flag:'🇦🇪',lat:25.2,lng:55.3,count:'15.3K',props:153000,avg:'$455,000',
-   cities:['Dubai','Abu Dhabi','Sharjah'],
-   types:[{n:'Apartments',p:55,c:'#4db8ff'},{n:'Houses',p:20,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:5,c:'#ff8a65'}]},
-  {name:'United States',flag:'🇺🇸',lat:40.7,lng:-74.0,count:'2.1K',props:21400,avg:'$420,000',
-   cities:['New York','Miami','Los Angeles','Chicago'],
-   types:[{n:'Apartments',p:35,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'Kenya',flag:'🇰🇪',lat:-1.3,lng:36.8,count:'4.2K',props:42100,avg:'$145,000',
-   cities:['Nairobi','Mombasa','Kisumu'],
-   types:[{n:'Apartments',p:30,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'Nigeria',flag:'🇳🇬',lat:6.5,lng:3.4,count:'7.8K',props:78400,avg:'$268,000',
-   cities:['Lagos','Abuja','Port Harcourt'],
-   types:[{n:'Apartments',p:25,c:'#4db8ff'},{n:'Houses',p:45,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'South Africa',flag:'🇿🇦',lat:-26.2,lng:28.0,count:'1.2K',props:12300,avg:'$198,000',
-   cities:['Johannesburg','Cape Town','Durban'],
-   types:[{n:'Apartments',p:30,c:'#4db8ff'},{n:'Houses',p:40,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'Japan',flag:'🇯🇵',lat:35.7,lng:139.7,count:'3.4K',props:34200,avg:'$390,000',
-   cities:['Tokyo','Osaka','Kyoto'],
-   types:[{n:'Apartments',p:60,c:'#4db8ff'},{n:'Houses',p:25,c:'#00e676'},{n:'Villas',p:10,c:'#d9b66f'},{n:'Land',p:5,c:'#ff8a65'}]},
-  {name:'France',flag:'🇫🇷',lat:48.9,lng:2.3,count:'5.1K',props:51200,avg:'€470,000',
-   cities:['Paris','Lyon','Nice','Marseille'],
-   types:[{n:'Apartments',p:50,c:'#4db8ff'},{n:'Houses',p:25,c:'#00e676'},{n:'Villas',p:15,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]},
-  {name:'Rwanda',flag:'🇷🇼',lat:-1.94,lng:30.06,count:'0.8K',props:8120,avg:'$132,000',
-   cities:['Kigali','Musanze','Huye'],
-   types:[{n:'Apartments',p:25,c:'#4db8ff'},{n:'Houses',p:45,c:'#00e676'},{n:'Villas',p:20,c:'#d9b66f'},{n:'Land',p:10,c:'#ff8a65'}]}
-];
+/* =========================================================================
+   HOUSECONNECT — single-file build
+   Real Supabase Auth + Postgres + Storage, real Stripe Checkout via Edge
+   Function. See houseconnect-architecture.md for the schema this expects.
+   ========================================================================= */
 
-const FEATURED = [
-  {title:'Modern Villa with Ocean View',loc:'Lagos, Portugal',price:'€1,850,000',beds:4,baths:4,area:'320 m²',badge:'FEATURED',badgeClass:'featured',
-   img:'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=500&q=80',tour:true},
-  {title:'Luxury Apartment in City Center',loc:'Dubai, UAE',price:'$750,000',beds:2,baths:3,area:'120 m²',badge:'NEW',badgeClass:'new',
-   img:'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=500&q=80',tour:true},
-  {title:'Family House with Garden',loc:'Nairobi, Kenya',price:'$450,000',old:'$500,000',beds:3,baths:2,area:'200 m²',badge:'PRICE DROP',badgeClass:'drop',
-   img:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',tour:false},
-  {title:'Penthouse in Downtown',loc:'New York, USA',price:'$2,950,000',beds:3,baths:3,area:'180 m²',badge:'VERIFIED',badgeClass:'verified',
-   img:'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=500&q=80',tour:true}
-];
+/* ---------- Supabase client ---------- */
+let sb = null;
+try {
+  const cfg = window.HC_CONFIG || {};
+  if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY &&
+      !cfg.SUPABASE_URL.includes('YOUR-PROJECT-REF') && window.supabase) {
+    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  }
+} catch (e) { console.warn('Supabase init failed', e); }
 
+function backendReady() {
+  if (sb) return true;
+  console.warn('Supabase is not configured — fill in window.HC_CONFIG at the top of this file.');
+  return false;
+}
+
+/* =========================================================================
+   GEO LOOKUP — country display data only (name / flag / lat-lng / cities).
+   No property counts, prices, or "verified" claims are hard-coded here;
+   those are computed from real Supabase rows in refreshPropertyData().
+   ========================================================================= */
+const GEO = [
+  {name:'Portugal',flag:'🇵🇹',lat:39.4,lng:-8.2,cities:['Lisbon','Porto','Algarve','Braga']},
+  {name:'United Kingdom',flag:'🇬🇧',lat:51.5,lng:-0.1,cities:['London','Manchester','Edinburgh','Bristol']},
+  {name:'United Arab Emirates',flag:'🇦🇪',lat:25.2,lng:55.3,cities:['Dubai','Abu Dhabi','Sharjah']},
+  {name:'United States',flag:'🇺🇸',lat:40.7,lng:-74.0,cities:['New York','Miami','Los Angeles','Chicago']},
+  {name:'Kenya',flag:'🇰🇪',lat:-1.3,lng:36.8,cities:['Nairobi','Mombasa','Kisumu']},
+  {name:'Nigeria',flag:'🇳🇬',lat:6.5,lng:3.4,cities:['Lagos','Abuja','Port Harcourt']},
+  {name:'South Africa',flag:'🇿🇦',lat:-26.2,lng:28.0,cities:['Johannesburg','Cape Town','Durban']},
+  {name:'Japan',flag:'🇯🇵',lat:35.7,lng:139.7,cities:['Tokyo','Osaka','Kyoto']},
+  {name:'France',flag:'🇫🇷',lat:48.9,lng:2.3,cities:['Paris','Lyon','Nice','Marseille']},
+  {name:'Rwanda',flag:'🇷🇼',lat:-1.94,lng:30.06,cities:['Kigali','Musanze','Huye']}
+];
 const DESTINATIONS = [
-  {name:'Dubai',count:'23,456',img:'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80',lat:25.2,lng:55.3},
-  {name:'London',count:'18,923',img:'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=300&q=80',lat:51.5,lng:-0.1},
-  {name:'New York',count:'15,678',img:'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=300&q=80',lat:40.7,lng:-74},
-  {name:'Kigali',count:'4,567',img:'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?auto=format&fit=crop&w=300&q=80',lat:-1.94,lng:30.06},
-  {name:'Paris',count:'12,345',img:'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80',lat:48.9,lng:2.3},
-  {name:'Tokyo',count:'9,876',img:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=300&q=80',lat:35.7,lng:139.7}
+  {name:'Dubai',img:'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=300&q=80',lat:25.2,lng:55.3},
+  {name:'London',img:'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=300&q=80',lat:51.5,lng:-0.1},
+  {name:'New York',img:'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=300&q=80',lat:40.7,lng:-74},
+  {name:'Kigali',img:'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?auto=format&fit=crop&w=300&q=80',lat:-1.94,lng:30.06},
+  {name:'Paris',img:'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=300&q=80',lat:48.9,lng:2.3},
+  {name:'Tokyo',img:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=300&q=80',lat:35.7,lng:139.7}
+];
+const COUNTRY_LABELS = [
+  {name:'Portugal',lat:39.5,lng:-8.0},{name:'Spain',lat:40.4,lng:-3.7},{name:'France',lat:46.6,lng:2.4},
+  {name:'United Kingdom',lat:54.0,lng:-2.5},{name:'Germany',lat:51.2,lng:10.4},{name:'Italy',lat:42.8,lng:12.5},
+  {name:'Nigeria',lat:9.1,lng:8.7},{name:'Kenya',lat:0.5,lng:37.9},{name:'South Africa',lat:-29.0,lng:25.0},
+  {name:'Egypt',lat:26.8,lng:30.8},{name:'Rwanda',lat:-2.0,lng:30.0},{name:'United Arab Emirates',lat:24.0,lng:54.5},
+  {name:'India',lat:22.0,lng:79.0},{name:'China',lat:35.0,lng:105.0},{name:'Japan',lat:36.2,lng:138.3},
+  {name:'Australia',lat:-25.0,lng:134.0},{name:'Brazil',lat:-10.0,lng:-55.0},{name:'United States',lat:39.5,lng:-98.5},
+  {name:'Canada',lat:56.0,lng:-106.0},{name:'Mexico',lat:23.6,lng:-102.5},{name:'Argentina',lat:-35.0,lng:-65.0},
+  {name:'Russia',lat:61.5,lng:105.0},{name:'Turkey',lat:39.0,lng:35.0},{name:'Saudi Arabia',lat:24.0,lng:45.0},
+  {name:'Indonesia',lat:-2.5,lng:118.0},{name:'Thailand',lat:15.0,lng:101.0},{name:'Morocco',lat:32.0,lng:-6.0},
+  {name:'Ghana',lat:7.9,lng:-1.0},{name:'Ethiopia',lat:9.1,lng:40.5},{name:'Tanzania',lat:-6.4,lng:34.9}
 ];
 
-/* ========== GLOBE ========== */
+function findGeoForCountry(name) {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  return GEO.find(m => {
+    const mn = m.name.toLowerCase();
+    return n === mn || n.includes(mn) || mn.includes(n) ||
+      n.includes(mn.split(' ')[0]) || mn.includes(n.split(' ')[0]);
+  });
+}
+
+/* =========================================================================
+   APP STATE
+   ========================================================================= */
+const AppState = {
+  user: null,          // Supabase auth user
+  profile: null,       // row from `profiles`
+  properties: [],       // published properties from Supabase, with photos joined in
+  savedIds: new Set(),  // property_ids this user has saved
+  markers: [],          // live per-country aggregation built from `properties`
+  pendingAction: null   // a function to run once auth succeeds (for guarded actions)
+};
+
+function money(n, currency) {
+  if (n == null) return '—';
+  const c = currency || 'USD';
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(n); }
+  catch (_) { return c + ' ' + Math.round(n).toLocaleString(); }
+}
+
+/* =========================================================================
+   AUTH — sign in / sign up / forgot password / logout / session restore
+   ========================================================================= */
+function openAuthModal(tab) {
+  document.getElementById('authModal').classList.add('show');
+  setAuthTab(tab || 'login');
+}
+function closeAuthModal() {
+  document.getElementById('authModal').classList.remove('show');
+  document.getElementById('loginMsg').textContent = '';
+  document.getElementById('signupMsg').textContent = '';
+}
+function setAuthTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('authTabLogin').classList.toggle('active', isLogin);
+  document.getElementById('authTabSignup').classList.toggle('active', !isLogin);
+  document.getElementById('loginForm').style.display = isLogin ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = isLogin ? 'none' : 'block';
+}
+function setModalMsg(id, text, cls) {
+  const el = document.getElementById(id);
+  el.textContent = text || '';
+  el.className = 'modal-msg' + (cls ? ' ' + cls : '');
+}
+function friendlyAuthError(error) {
+  if (!error) return 'Something went wrong. Please try again.';
+  const m = (error.message || '').toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Your email or password is incorrect.';
+  if (m.includes('email not confirmed')) return 'Your email needs confirmation. Check your inbox for a confirmation link.';
+  if (m.includes('user already registered')) return 'An account with this email already exists — try signing in instead.';
+  if (m.includes('password should be at least')) return error.message;
+  if (m.includes('failed to fetch')) return 'Unable to reach the authentication service. Check your connection and try again.';
+  return error.message || 'Something went wrong. Please try again.';
+}
+
+document.getElementById('authTabLogin').onclick = () => setAuthTab('login');
+document.getElementById('authTabSignup').onclick = () => setAuthTab('signup');
+document.getElementById('authClose').onclick = closeAuthModal;
+document.getElementById('btnSignIn').onclick = () => openAuthModal('login');
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!backendReady()) { setModalMsg('loginMsg', 'Database not connected. Fill in window.HC_CONFIG in this file.', 'err'); return; }
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  setModalMsg('loginMsg', 'Signing in…');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { setModalMsg('loginMsg', friendlyAuthError(error), 'err'); return; }
+  setModalMsg('loginMsg', 'Signed in.', 'ok');
+  await onSignedIn(data.user);
+  closeAuthModal();
+  runPendingAction();
+});
+
+document.getElementById('signupForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!backendReady()) { setModalMsg('signupMsg', 'Database not connected. Fill in window.HC_CONFIG in this file.', 'err'); return; }
+  const full_name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  setModalMsg('signupMsg', 'Creating account…');
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { full_name, role: 'buyer' }, emailRedirectTo: location.origin + location.pathname }
+  });
+  if (error) { setModalMsg('signupMsg', friendlyAuthError(error), 'err'); return; }
+  if (data.session) {
+    setModalMsg('signupMsg', 'Account created.', 'ok');
+    await onSignedIn(data.user);
+    closeAuthModal();
+    runPendingAction();
+  } else {
+    setModalMsg('signupMsg', 'Account created. If email confirmation is required, confirm it, then sign in.', 'ok');
+  }
+});
+
+document.getElementById('forgotBtn').onclick = async () => {
+  if (!backendReady()) { setModalMsg('loginMsg', 'Database not connected.', 'err'); return; }
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!email) { setModalMsg('loginMsg', 'Enter your email above first.', 'err'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + '#reset' });
+  setModalMsg('loginMsg', error ? friendlyAuthError(error) : 'Password reset email sent — check your inbox.', error ? 'err' : 'ok');
+};
+
+async function signOut() {
+  if (!sb) return;
+  await sb.auth.signOut();
+  AppState.user = null;
+  AppState.profile = null;
+  AppState.savedIds = new Set();
+  renderAuthUI();
+}
+document.getElementById('pmSignOut').onclick = signOut;
+
+/* Runs after a real Supabase auth session exists */
+async function onSignedIn(user) {
+  AppState.user = user;
+  await loadProfile();
+  await loadSavedIds();
+  renderAuthUI();
+}
+
+async function loadProfile() {
+  if (!sb || !AppState.user) return;
+  let { data, error } = await sb.from('profiles').select('*').eq('id', AppState.user.id).single();
+  if (error && error.code === 'PGRST116') {
+    // No row yet (trigger not deployed) — create one client-side as a fallback.
+    const insert = { id: AppState.user.id, full_name: AppState.user.user_metadata?.full_name || AppState.user.email.split('@')[0], email: AppState.user.email, role: 'buyer' };
+    const created = await sb.from('profiles').upsert(insert, { onConflict: 'id' }).select().single();
+    data = created.data;
+  }
+  AppState.profile = data || { id: AppState.user.id, full_name: AppState.user.email, role: 'buyer' };
+}
+
+async function loadSavedIds() {
+  if (!sb || !AppState.user) return;
+  const { data, error } = await sb.from('saved_properties').select('property_id').eq('profile_id', AppState.user.id);
+  if (!error && data) AppState.savedIds = new Set(data.map(r => r.property_id));
+}
+
+function avatarFallbackHTML(name) {
+  const initials = (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return initials || '?';
+}
+
+function renderAuthUI() {
+  const signedIn = !!AppState.user;
+  document.getElementById('btnSignIn').style.display = signedIn ? 'none' : 'inline-block';
+  document.getElementById('profileBtn').style.display = signedIn ? 'flex' : 'none';
+  document.body.classList.toggle('guest', !signedIn);
+
+  if (!signedIn) {
+    setRoleUI('buyer');
+    return;
+  }
+  const p = AppState.profile || {};
+  const name = p.full_name || AppState.user.email;
+  document.getElementById('profileName').textContent = name;
+  document.getElementById('pmName').textContent = name;
+  document.getElementById('pmEmail').textContent = AppState.user.email || '';
+  const avatarImg = document.getElementById('profileAvatar');
+  if (p.avatar_url) { avatarImg.src = p.avatar_url; avatarImg.style.display = 'block'; }
+  else { avatarImg.removeAttribute('src'); avatarImg.style.display = 'none'; }
+  setRoleUI(p.role || 'buyer');
+  buildFeatured(); // refresh heart state now that savedIds is known
+}
+
+function setRoleUI(role) {
+  document.body.classList.remove('role-buyer', 'role-seller');
+  document.body.classList.add('role-' + role);
+  document.getElementById('profileRoleLabel').innerHTML = role === 'seller'
+    ? '<span class="role-badge seller">Seller</span>'
+    : '<span class="role-badge buyer">Buyer</span>';
+  document.getElementById('roleBuyer').classList.toggle('active', role === 'buyer');
+  document.getElementById('roleSeller').classList.toggle('active', role === 'seller');
+  document.querySelectorAll('.seller-only').forEach(el => { el.style.display = role === 'seller' ? 'flex' : 'none'; });
+}
+
+async function setRole(role) {
+  if (!AppState.user) { openAuthModal('login'); return; }
+  setRoleUI(role);
+  const { error } = await sb.from('profiles').update({ role }).eq('id', AppState.user.id);
+  if (error) { alert('Could not save role: ' + error.message); return; }
+  AppState.profile = { ...(AppState.profile || {}), role };
+}
+document.getElementById('roleBuyer').onclick = e => { e.stopPropagation(); setRole('buyer'); };
+document.getElementById('roleSeller').onclick = e => { e.stopPropagation(); setRole('seller'); };
+
+/* =========================================================================
+   ACCESS CONTROL — guarded navigation. Guests get sent to Sign In instead
+   of a feature silently "working" against no data.
+   ========================================================================= */
+function requireAuth(action) {
+  if (AppState.user) { action(); return; }
+  AppState.pendingAction = action;
+  openAuthModal('login');
+}
+function runPendingAction() {
+  const a = AppState.pendingAction;
+  AppState.pendingAction = null;
+  if (a) a();
+}
+
+document.querySelectorAll('[data-guard]').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
+    const guard = el.dataset.guard;
+    if (guard === 'saved') { requireAuth(openSavedModal); return; }
+    if (guard === 'account') { requireAuth(openAccountModal); return; }
+    if (guard === 'dashboard') { requireAuth(openDashboardStub); return; }
+    if (guard.startsWith('stub:')) { requireAuth(() => openStub(guard.slice(5))); return; }
+  });
+});
+document.getElementById('pmSaved').onclick = e => { e.preventDefault(); requireAuth(openSavedModal); };
+document.getElementById('pmDashboard').onclick = e => { e.preventDefault(); requireAuth(openDashboardStub); };
+document.getElementById('pmAccount').onclick = e => { e.preventDefault(); requireAuth(openAccountModal); };
+
+function openStub(name) {
+  document.getElementById('stubTitle').textContent = name;
+  document.getElementById('stubNote').textContent =
+    name + ' is authenticated and reserved in the database schema (see property/profile relationships), ' +
+    'but its UI is not wired up in this build yet — it will read/write real Supabase rows rather than demo data ' +
+    'once connected, the same way Saved Properties and the Seller workflow already do.';
+  document.getElementById('stubModal').classList.add('show');
+}
+document.getElementById('stubClose').onclick = () => document.getElementById('stubModal').classList.remove('show');
+function openDashboardStub() { openStub('Dashboard'); }
+
+/* =========================================================================
+   ACCOUNT MODAL — real profile edit + avatar upload/replace/remove
+   ========================================================================= */
+function openAccountModal() {
+  const p = AppState.profile || {};
+  document.getElementById('accName').value = p.full_name || '';
+  document.getElementById('accEmail').value = AppState.user.email || '';
+  document.getElementById('accAvatarImg').src = p.avatar_url || '';
+  document.getElementById('accAvatarImg').style.display = p.avatar_url ? 'block' : 'none';
+  document.getElementById('accBuyerBtn').classList.toggle('active', (p.role || 'buyer') === 'buyer');
+  document.getElementById('accSellerBtn').classList.toggle('active', p.role === 'seller');
+  setModalMsg('accMsg', '');
+  document.getElementById('accountModal').classList.add('show');
+}
+document.getElementById('accountClose').onclick = () => document.getElementById('accountModal').classList.remove('show');
+document.getElementById('accBuyerBtn').onclick = () => { setRole('buyer'); openAccountModal(); };
+document.getElementById('accSellerBtn').onclick = () => { setRole('seller'); openAccountModal(); };
+document.getElementById('accUploadBtn').onclick = () => document.getElementById('accAvatarFile').click();
+
+document.getElementById('accAvatarFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file || !AppState.user) return;
+  setModalMsg('accMsg', 'Uploading…');
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = AppState.user.id + '/avatar.' + ext;
+    const { error: upErr } = await sb.storage.from('avatars').upload(path, file, { upsert: true });
+    if (upErr) throw upErr;
+    const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
+    const { error: dbErr } = await sb.from('profiles').update({ avatar_url: pub.publicUrl }).eq('id', AppState.user.id);
+    if (dbErr) throw dbErr;
+    AppState.profile.avatar_url = pub.publicUrl;
+    document.getElementById('accAvatarImg').src = pub.publicUrl;
+    document.getElementById('accAvatarImg').style.display = 'block';
+    renderAuthUI();
+    setModalMsg('accMsg', 'Photo updated.', 'ok');
+  } catch (err) {
+    setModalMsg('accMsg', 'Upload failed: ' + (err.message || err), 'err');
+  }
+});
+
+document.getElementById('accRemoveBtn').onclick = async () => {
+  if (!AppState.user) return;
+  const { error } = await sb.from('profiles').update({ avatar_url: null }).eq('id', AppState.user.id);
+  if (error) { setModalMsg('accMsg', error.message, 'err'); return; }
+  AppState.profile.avatar_url = null;
+  document.getElementById('accAvatarImg').style.display = 'none';
+  renderAuthUI();
+  setModalMsg('accMsg', 'Photo removed.', 'ok');
+};
+
+document.getElementById('accSave').onclick = async () => {
+  const full_name = document.getElementById('accName').value.trim();
+  if (!full_name) { setModalMsg('accMsg', 'Name is required.', 'err'); return; }
+  const { error } = await sb.from('profiles').update({ full_name }).eq('id', AppState.user.id);
+  if (error) { setModalMsg('accMsg', error.message, 'err'); return; }
+  AppState.profile.full_name = full_name;
+  renderAuthUI();
+  setModalMsg('accMsg', 'Profile saved.', 'ok');
+};
+
+/* =========================================================================
+   SAVED PROPERTIES — real toggle + real list, backed by `saved_properties`
+   ========================================================================= */
+async function toggleSaved(propertyId) {
+  if (!AppState.user) { requireAuth(() => toggleSaved(propertyId)); return; }
+  const isSaved = AppState.savedIds.has(propertyId);
+  if (isSaved) {
+    const { error } = await sb.from('saved_properties').delete().eq('profile_id', AppState.user.id).eq('property_id', propertyId);
+    if (!error) AppState.savedIds.delete(propertyId);
+  } else {
+    const { error } = await sb.from('saved_properties').insert({ profile_id: AppState.user.id, property_id: propertyId });
+    if (!error) AppState.savedIds.add(propertyId);
+  }
+  buildFeatured();
+}
+
+async function openSavedModal() {
+  document.getElementById('savedModal').classList.add('show');
+  const grid = document.getElementById('savedGrid');
+  grid.innerHTML = '<div class="saved-empty">Loading…</div>';
+  const { data, error } = await sb
+    .from('saved_properties')
+    .select('property_id, properties(*, property_photos(storage_path, is_main))')
+    .eq('profile_id', AppState.user.id);
+  if (error) { grid.innerHTML = '<div class="saved-empty">Could not load saved properties: ' + error.message + '</div>'; return; }
+  if (!data || !data.length) { grid.innerHTML = '<div class="saved-empty">You haven\'t saved any properties yet. Tap the heart on a listing to save it.</div>'; return; }
+  grid.innerHTML = data.map(row => {
+    const p = row.properties;
+    if (!p) return '';
+    const img = photoUrlFor(p);
+    return `<div class="feat-card">
+      <div class="feat-img" style="background-image:url('${img}')"></div>
+      <div class="feat-body">
+        <h4>${escapeHtml(p.title)}</h4>
+        <div class="loc">${escapeHtml(p.city)}, ${escapeHtml(p.country)}</div>
+        <div class="price">${money(p.price, p.currency)}</div>
+        <div class="meta"><span>${p.bedrooms ?? '—'} Beds</span><span>${p.bathrooms ?? '—'} Baths</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('savedClose').onclick = () => document.getElementById('savedModal').classList.remove('show');
+
+function escapeHtml(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function photoUrlFor(property) {
+  const photos = property.property_photos || [];
+  const main = photos.find(ph => ph.is_main) || photos[0];
+  if (!main) return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80';
+  const { data } = sb.storage.from('property-photos').getPublicUrl(main.storage_path);
+  return data.publicUrl;
+}
+
+/* =========================================================================
+   PROPERTY DATA — real reads from Supabase. No hard-coded demo listings.
+   ========================================================================= */
+async function refreshPropertyData() {
+  if (!backendReady()) {
+    AppState.properties = [];
+    AppState.markers = [];
+    buildFeatured();
+    buildMarkersOnGlobe();
+    return;
+  }
+  const { data, error } = await sb
+    .from('properties')
+    .select('*, property_photos(storage_path, is_main, sort_order)')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false })
+    .limit(60);
+  if (error) { console.error('Could not load properties:', error.message); AppState.properties = []; }
+  else { AppState.properties = data || []; }
+
+  // Aggregate real counts per country for the globe — no fabricated numbers.
+  const byCountry = {};
+  AppState.properties.forEach(p => {
+    const key = p.country || 'Unknown';
+    if (!byCountry[key]) byCountry[key] = { country: key, count: 0, cities: new Set(), lat: p.lat, lng: p.lng };
+    byCountry[key].count++;
+    if (p.city) byCountry[key].cities.add(p.city);
+    if (byCountry[key].lat == null && p.lat != null) { byCountry[key].lat = p.lat; byCountry[key].lng = p.lng; }
+  });
+  AppState.markers = Object.values(byCountry).map(row => {
+    const geo = findGeoForCountry(row.country) || {};
+    return {
+      name: row.country,
+      flag: geo.flag || '📍',
+      lat: geo.lat ?? row.lat ?? 0,
+      lng: geo.lng ?? row.lng ?? 0,
+      count: row.count,
+      cities: Array.from(row.cities).slice(0, 6)
+    };
+  });
+
+  buildFeatured();
+  buildMarkersOnGlobe();
+}
+
+function buildFeatured() {
+  const el = document.getElementById('featScroll');
+  if (!AppState.properties.length) {
+    el.innerHTML = backendReady()
+      ? '<div class="saved-empty" style="padding:20px 4px">No published listings yet. Once sellers complete verification and payment, real listings will appear here.</div>'
+      : '<div class="saved-empty" style="padding:20px 4px">Connect Supabase in window.HC_CONFIG to load real listings.</div>';
+    return;
+  }
+  el.innerHTML = AppState.properties.slice(0, 12).map(p => {
+    const img = photoUrlFor(p);
+    const saved = AppState.savedIds.has(p.id);
+    return `<div class="feat-card" data-id="${p.id}">
+      <div class="feat-img" style="background-image:url('${img}')">
+        <span class="feat-badge verified">PUBLISHED</span>
+        <span class="feat-heart" data-save="${p.id}" style="${saved ? 'color:#ff5f6d' : ''}">${saved ? '♥' : '♡'}</span>
+        ${p.tour_url ? '<span class="feat-tour">3D Tour</span>' : ''}
+      </div>
+      <div class="feat-body">
+        <h4>${escapeHtml(p.title)}</h4>
+        <div class="loc">${escapeHtml(p.city)}, ${escapeHtml(p.country)}</div>
+        <div class="price">${money(p.price, p.currency)}</div>
+        <div class="meta"><span>${p.bedrooms ?? '—'} Beds</span><span>${p.bathrooms ?? '—'} Baths</span></div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-save]').forEach(h => {
+    h.addEventListener('click', ev => { ev.stopPropagation(); toggleSaved(h.dataset.save); });
+  });
+}
+
+function buildDestinations() {
+  const el = document.getElementById('popScroll');
+  el.innerHTML = DESTINATIONS.map(d => `
+    <div class="pop-card" style="background-image:url('${d.img}')" data-lat="${d.lat}" data-lng="${d.lng}" data-name="${d.name}">
+      <div class="info"><b>${d.name}</b></div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.pop-card').forEach(card => {
+    card.onclick = () => {
+      const lat = +card.dataset.lat, lng = +card.dataset.lng;
+      const match = AppState.markers.find(m => Math.abs(m.lat - lat) < 3 && Math.abs(m.lng - lng) < 3);
+      if (match) showLocation(match);
+      else if (globe) {
+        controls.autoRotate = false; autoRotate = false;
+        document.getElementById('toolRotate').classList.remove('active');
+        globe.pointOfView({ lat, lng, altitude: 1.25 }, 1000);
+      }
+    };
+  });
+}
+
+/* =========================================================================
+   GLOBE
+   ========================================================================= */
 let globe, controls, autoRotate = true;
 let hoveredCountry = null;
-
-// Country name labels shown on the globe (exact names)
-const COUNTRY_LABELS = [
-  {name:'Portugal',lat:39.5,lng:-8.0},
-  {name:'Spain',lat:40.4,lng:-3.7},
-  {name:'France',lat:46.6,lng:2.4},
-  {name:'United Kingdom',lat:54.0,lng:-2.5},
-  {name:'Germany',lat:51.2,lng:10.4},
-  {name:'Italy',lat:42.8,lng:12.5},
-  {name:'Nigeria',lat:9.1,lng:8.7},
-  {name:'Kenya',lat:0.5,lng:37.9},
-  {name:'South Africa',lat:-29.0,lng:25.0},
-  {name:'Egypt',lat:26.8,lng:30.8},
-  {name:'Rwanda',lat:-2.0,lng:30.0},
-  {name:'United Arab Emirates',lat:24.0,lng:54.5},
-  {name:'India',lat:22.0,lng:79.0},
-  {name:'China',lat:35.0,lng:105.0},
-  {name:'Japan',lat:36.2,lng:138.3},
-  {name:'Australia',lat:-25.0,lng:134.0},
-  {name:'Brazil',lat:-10.0,lng:-55.0},
-  {name:'United States',lat:39.5,lng:-98.5},
-  {name:'Canada',lat:56.0,lng:-106.0},
-  {name:'Mexico',lat:23.6,lng:-102.5},
-  {name:'Argentina',lat:-35.0,lng:-65.0},
-  {name:'Russia',lat:61.5,lng:105.0},
-  {name:'Turkey',lat:39.0,lng:35.0},
-  {name:'Saudi Arabia',lat:24.0,lng:45.0},
-  {name:'Indonesia',lat:-2.5,lng:118.0},
-  {name:'Thailand',lat:15.0,lng:101.0},
-  {name:'Morocco',lat:32.0,lng:-6.0},
-  {name:'Ghana',lat:7.9,lng:-1.0},
-  {name:'Ethiopia',lat:9.1,lng:40.5},
-  {name:'Tanzania',lat:-6.4,lng:34.9}
-];
 
 function centroidOf(feature) {
   let ring = feature.geometry.coordinates[0];
@@ -1007,20 +1546,7 @@ function centroidOf(feature) {
   if (!ring || !ring.length) return { lat: 0, lng: 0 };
   const lats = ring.map(c => c[1]);
   const lngs = ring.map(c => c[0]);
-  return {
-    lat: lats.reduce((a, b) => a + b, 0) / lats.length,
-    lng: lngs.reduce((a, b) => a + b, 0) / lngs.length
-  };
-}
-
-function findMarkerForCountry(name) {
-  if (!name) return null;
-  const n = name.toLowerCase();
-  return MARKERS.find(m => {
-    const mn = m.name.toLowerCase();
-    return n === mn || n.includes(mn) || mn.includes(n) ||
-      n.includes(mn.split(' ')[0]) || mn.includes(n.split(' ')[0]);
-  });
+  return { lat: lats.reduce((a, b) => a + b, 0) / lats.length, lng: lngs.reduce((a, b) => a + b, 0) / lngs.length };
 }
 
 function initGlobe() {
@@ -1029,45 +1555,17 @@ function initGlobe() {
     el.innerHTML = '<div style="display:grid;place-items:center;height:100%;color:#7d9abd;font-size:14px">Loading 3D Earth… check internet connection</div>';
     return;
   }
-
   globe = Globe()(el)
     .backgroundColor('rgba(0,0,0,0)')
     .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg')
     .bumpImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png')
     .backgroundImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
-    .showAtmosphere(true)
-    .atmosphereColor('#4db8ff')
-    .atmosphereAltitude(0.17)
-    // Property count markers + country names under them
-    .pointsData(MARKERS)
-    .pointLat('lat').pointLng('lng')
-    .pointColor(() => '#00f0ff')
-    .pointAltitude(0.018)
-    .pointRadius(0.5)
-    .pointLabel(d => `<b style="font-size:13px">${d.name}</b><br>${d.count} properties · ${d.avg}`)
-    .onPointClick(d => showLocation(d))
-    .onPointHover(d => { el.style.cursor = d ? 'pointer' : 'grab'; })
-    .htmlElementsData(MARKERS)
-    .htmlLat('lat').htmlLng('lng')
-    .htmlAltitude(0.04)
-    .htmlElement(d => {
-      const div = document.createElement('div');
-      div.className = 'marker-label';
-      div.innerHTML = `<span class="marker-count">${d.count}</span><span class="marker-name">${d.name}</span>`;
-      div.style.pointerEvents = 'none';
-      return div;
-    })
-    // Extra country NAME labels across the globe
-    .labelsData(COUNTRY_LABELS)
-    .labelLat('lat').labelLng('lng')
-    .labelText('name')
-    .labelSize(0.5)
-    .labelColor(() => 'rgba(210,230,255,0.9)')
-    .labelDotRadius(0)
-    .labelAltitude(0.01)
-    .labelResolution(2);
+    .showAtmosphere(true).atmosphereColor('#4db8ff').atmosphereAltitude(0.17)
+    .labelsData(COUNTRY_LABELS).labelLat('lat').labelLng('lng').labelText('name')
+    .labelSize(0.5).labelColor(() => 'rgba(210,230,255,0.9)').labelDotRadius(0).labelAltitude(0.01).labelResolution(2);
 
-  // Country polygons — hover highlight + click for property info
+  buildMarkersOnGlobe();
+
   fetch('https://cdn.jsdelivr.net/npm/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson')
     .then(r => r.json())
     .then(gj => {
@@ -1079,67 +1577,69 @@ function initGlobe() {
         .polygonAltitude(d => d === hoveredCountry ? 0.016 : 0.004)
         .polygonLabel(d => {
           const name = d.properties.ADMIN || d.properties.NAME || '';
-          const m = findMarkerForCountry(name);
-          if (m) return `<b>${name}</b><br>${m.count} properties · avg ${m.avg}<br><i>Click for details</i>`;
-          return `<b>${name}</b><br>Click to explore`;
+          const m = AppState.markers.find(mm => mm.name && findGeoForCountry(mm.name) && (findGeoForCountry(mm.name).name === name || name.toLowerCase().includes(mm.name.toLowerCase())));
+          if (m) return `<b>${name}</b><br>${m.count} published ${m.count === 1 ? 'listing' : 'listings'}<br><i>Click for details</i>`;
+          return `<b>${name}</b><br>No published listings yet`;
         })
         .onPolygonHover(poly => {
           hoveredCountry = poly || null;
           el.style.cursor = poly ? 'pointer' : 'grab';
-          globe
-            .polygonCapColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.2)' : 'rgba(77,184,255,.04)')
-            .polygonStrokeColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.75)' : 'rgba(140,200,255,.25)')
-            .polygonAltitude(d => d === hoveredCountry ? 0.016 : 0.004);
+          globe.polygonCapColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.2)' : 'rgba(77,184,255,.04)')
+              .polygonStrokeColor(d => d === hoveredCountry ? 'rgba(0,240,255,0.75)' : 'rgba(140,200,255,.25)')
+              .polygonAltitude(d => d === hoveredCountry ? 0.016 : 0.004);
         })
         .onPolygonClick(poly => {
           if (!poly) return;
           const name = poly.properties.ADMIN || poly.properties.NAME || '';
-          const match = findMarkerForCountry(name);
+          const match = AppState.markers.find(m => m.name && (m.name.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(m.name.toLowerCase())));
           if (match) showLocation(match);
           else showGenericCountry(poly);
         });
     }).catch(() => {});
 
   controls = globe.controls();
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 0.32;
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.enablePan = false;
-  controls.minDistance = 120;
-  controls.maxDistance = 480;
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.32; controls.enableDamping = true;
+  controls.dampingFactor = 0.08; controls.enablePan = false; controls.minDistance = 120; controls.maxDistance = 480;
   globe.pointOfView({ lat: 12, lng: 15, altitude: 2.05 }, 0);
-
   globe.width(el.clientWidth).height(el.clientHeight);
 
   el.addEventListener('pointerdown', () => {
-    if (controls.autoRotate) {
-      controls.autoRotate = false;
-      autoRotate = false;
-      document.getElementById('toolRotate').classList.remove('active');
-    }
+    if (controls.autoRotate) { controls.autoRotate = false; autoRotate = false; document.getElementById('toolRotate').classList.remove('active'); }
   }, { passive: true });
+  window.addEventListener('resize', () => { if (globe) globe.width(el.clientWidth).height(el.clientHeight); });
+}
 
-  window.addEventListener('resize', () => {
-    if (globe) globe.width(el.clientWidth).height(el.clientHeight);
-  });
+function buildMarkersOnGlobe() {
+  if (!globe) return;
+  globe.pointsData(AppState.markers)
+    .pointLat('lat').pointLng('lng')
+    .pointColor(() => '#00f0ff')
+    .pointAltitude(0.018).pointRadius(0.5)
+    .pointLabel(d => `<b style="font-size:13px">${d.name}</b><br>${d.count} published ${d.count === 1 ? 'listing' : 'listings'}`)
+    .onPointClick(d => showLocation(d))
+    .onPointHover(d => { document.getElementById('globe').style.cursor = d ? 'pointer' : 'grab'; })
+    .htmlElementsData(AppState.markers)
+    .htmlLat('lat').htmlLng('lng').htmlAltitude(0.04)
+    .htmlElement(d => {
+      const div = document.createElement('div');
+      div.className = 'marker-label';
+      div.innerHTML = `<span class="marker-count">${d.count}</span><span class="marker-name">${d.name}</span>`;
+      div.style.pointerEvents = 'none';
+      return div;
+    });
 }
 
 function showLocation(d) {
-  document.getElementById('loc-flag').textContent = d.flag;
+  document.getElementById('loc-flag').textContent = d.flag || '📍';
   document.getElementById('loc-name').textContent = d.name;
-  document.getElementById('loc-count').innerHTML = d.props.toLocaleString() + ' <small>Properties</small>';
-  document.getElementById('loc-avg').textContent = d.avg;
-  document.getElementById('loc-cities').innerHTML = d.cities.map(c => `<span>${c}</span>`).join('');
-  document.getElementById('loc-types').innerHTML = d.types.map(t =>
-    `<div class="loc-type"><span style="width:65px">${t.n}</span><div class="bar"><i style="width:${t.p}%;background:${t.c}"></i></div><span class="pct">${t.p}%</span></div>`
-  ).join('');
-  document.getElementById('locExplore').textContent = 'Explore ' + d.name;
+  document.getElementById('loc-count').innerHTML = (d.count ?? 0) + ' <small>Published listings</small>';
+  document.getElementById('loc-avg').textContent = '';
+  document.getElementById('loc-cities').innerHTML = (d.cities || []).map(c => `<span>${escapeHtml(c)}</span>`).join('') || '<span>No cities yet</span>';
+  document.getElementById('loc-types').innerHTML = '';
+  document.getElementById('locExplore').textContent = 'Close';
   document.getElementById('loc-popup').classList.add('show');
-
   if (globe && controls) {
-    controls.autoRotate = false;
-    autoRotate = false;
+    controls.autoRotate = false; autoRotate = false;
     document.getElementById('toolRotate').classList.remove('active');
     globe.pointOfView({ lat: d.lat, lng: d.lng, altitude: 1.3 }, 1100);
   }
@@ -1148,486 +1648,259 @@ function showLocation(d) {
 function showGenericCountry(feature) {
   const name = feature.properties.ADMIN || feature.properties.NAME || 'Country';
   const c = centroidOf(feature);
-  const pop = feature.properties.POP_EST
-    ? Number(feature.properties.POP_EST).toLocaleString()
-    : '—';
+  const pop = feature.properties.POP_EST ? Number(feature.properties.POP_EST).toLocaleString() : '—';
   const capital = feature.properties.CAPITAL || '—';
-
   document.getElementById('loc-flag').textContent = '🌍';
   document.getElementById('loc-name').textContent = name;
-  document.getElementById('loc-count').innerHTML = 'Coming soon <small>Properties</small>';
-  document.getElementById('loc-avg').textContent = '—';
-  document.getElementById('loc-cities').innerHTML =
-    `<span>Capital: ${capital}</span><span>Pop: ${pop}</span>`;
-  document.getElementById('loc-types').innerHTML =
-    '<div style="font-size:11px;color:var(--muted);line-height:1.5;padding:4px 0">No mapped listings yet for this country.<br>Try a highlighted market: Portugal, UAE, Kenya, UK…</div>';
+  document.getElementById('loc-count').innerHTML = '0 <small>Published listings</small>';
+  document.getElementById('loc-avg').textContent = '';
+  document.getElementById('loc-cities').innerHTML = `<span>Capital: ${escapeHtml(capital)}</span><span>Pop: ${escapeHtml(pop)}</span>`;
+  document.getElementById('loc-types').innerHTML = '<div style="font-size:11px;color:var(--muted);line-height:1.5;padding:4px 0">No published listings yet for this country.</div>';
   document.getElementById('locExplore').textContent = 'Close';
   document.getElementById('loc-popup').classList.add('show');
-
   if (globe && controls) {
-    controls.autoRotate = false;
-    autoRotate = false;
+    controls.autoRotate = false; autoRotate = false;
     document.getElementById('toolRotate').classList.remove('active');
     globe.pointOfView({ lat: c.lat, lng: c.lng, altitude: 1.4 }, 1100);
   }
 }
+function hideLocation() { document.getElementById('loc-popup').classList.remove('show'); }
 
-function hideLocation() {
-  document.getElementById('loc-popup').classList.remove('show');
-}
-
-/* ========== UI BUILD ========== */
-function buildFeatured() {
-  document.getElementById('featScroll').innerHTML = FEATURED.map(p => `
-    <div class="feat-card">
-      <div class="feat-img" style="background-image:url('${p.img}')">
-        <span class="feat-badge ${p.badgeClass}">${p.badge}</span>
-        <span class="feat-heart">♡</span>
-        ${p.tour ? '<span class="feat-tour">360° Tour</span>' : ''}
-      </div>
-      <div class="feat-body">
-        <h4>${p.title}</h4>
-        <div class="loc">${p.loc}</div>
-        <div class="price">${p.price}${p.old ? ' <small style="text-decoration:line-through;color:var(--muted);font-weight:400;font-size:9px">' + p.old + '</small>' : ''}</div>
-        <div class="meta"><span>${p.beds} Beds</span><span>${p.baths} Baths</span><span>${p.area}</span></div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function buildDestinations() {
-  const el = document.getElementById('popScroll');
-  el.innerHTML = DESTINATIONS.map(d => `
-    <div class="pop-card" style="background-image:url('${d.img}')" data-lat="${d.lat}" data-lng="${d.lng}" data-name="${d.name}">
-      <div class="info"><b>${d.name}</b><span>${d.count} Properties</span></div>
-    </div>
-  `).join('');
-  el.querySelectorAll('.pop-card').forEach(card => {
-    card.onclick = () => {
-      const lat = +card.dataset.lat, lng = +card.dataset.lng;
-      const match = MARKERS.find(m => m.name === card.dataset.name || Math.abs(m.lat - lat) < 3);
-      if (match) showLocation(match);
-      else if (globe) {
-        controls.autoRotate = false;
-        autoRotate = false;
-        document.getElementById('toolRotate').classList.remove('active');
-        globe.pointOfView({ lat, lng, altitude: 1.25 }, 1000);
-      }
-    };
-  });
-}
-
-/* ========== EVENTS ========== */
+/* =========================================================================
+   UI EVENTS (globe tools, filters, layers, search) — unchanged behavior,
+   now operating on real AppState.markers instead of fake demo data.
+   ========================================================================= */
 document.getElementById('locClose').onclick = hideLocation;
 document.getElementById('locExplore').onclick = hideLocation;
-
-// Click outside popup closes it
 document.addEventListener('pointerdown', e => {
   const popup = document.getElementById('loc-popup');
   if (popup.classList.contains('show') && !popup.contains(e.target) && !e.target.closest('.marker-label')) {
-    // only close if click is not on a point (globe handles points)
     if (!e.target.closest('#globe')) hideLocation();
   }
 });
-
 document.getElementById('toolReset').onclick = () => {
   hideLocation();
   if (!globe) return;
   globe.pointOfView({ lat: 12, lng: 15, altitude: 2.05 }, 900);
-  controls.autoRotate = true;
-  autoRotate = true;
+  controls.autoRotate = true; autoRotate = true;
   document.getElementById('toolRotate').classList.add('active');
 };
-
 document.getElementById('toolRotate').onclick = function () {
   autoRotate = !autoRotate;
   if (controls) controls.autoRotate = autoRotate;
   this.classList.toggle('active', autoRotate);
 };
-
 document.getElementById('toolFly').onclick = () => {
-  const r = MARKERS[Math.floor(Math.random() * MARKERS.length)];
-  showLocation(r);
+  if (!AppState.markers.length) return;
+  showLocation(AppState.markers[Math.floor(Math.random() * AppState.markers.length)]);
 };
+document.getElementById('toolZoomIn').onclick = () => { if (!globe) return; const p = globe.pointOfView(); globe.pointOfView({ ...p, altitude: Math.max(0.7, p.altitude * 0.75) }, 400); };
+document.getElementById('toolZoomOut').onclick = () => { if (!globe) return; const p = globe.pointOfView(); globe.pointOfView({ ...p, altitude: Math.min(3.5, p.altitude * 1.3) }, 400); };
 
-document.getElementById('toolZoomIn').onclick = () => {
-  if (!globe) return;
-  const p = globe.pointOfView();
-  globe.pointOfView({ ...p, altitude: Math.max(0.7, p.altitude * 0.75) }, 400);
-};
-document.getElementById('toolZoomOut').onclick = () => {
-  if (!globe) return;
-  const p = globe.pointOfView();
-  globe.pointOfView({ ...p, altitude: Math.min(3.5, p.altitude * 1.3) }, 400);
-};
-
-function fmtPrice(v) {
-  if (v >= 1000000) return '$' + (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + 'M';
-  return '$' + Math.round(v / 1000) + 'K';
-}
-const pMin = document.getElementById('priceMin');
-const pMax = document.getElementById('priceMax');
-function updatePriceLabels() {
-  let a = +pMin.value, b = +pMax.value;
-  if (a > b) [a, b] = [b, a];
-  document.getElementById('priceMinLabel').textContent = fmtPrice(a);
-  document.getElementById('priceMaxLabel').textContent = fmtPrice(b);
-}
+function fmtPrice(v) { if (v >= 1000000) return '$' + (v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1) + 'M'; return '$' + Math.round(v / 1000) + 'K'; }
+const pMin = document.getElementById('priceMin'), pMax = document.getElementById('priceMax');
+function updatePriceLabels() { let a = +pMin.value, b = +pMax.value; if (a > b) [a, b] = [b, a]; document.getElementById('priceMinLabel').textContent = fmtPrice(a); document.getElementById('priceMaxLabel').textContent = fmtPrice(b); }
 pMin.oninput = pMax.oninput = updatePriceLabels;
 
-document.querySelectorAll('.filter-tabs button').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.filter-tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  };
-});
-
+document.querySelectorAll('.filter-tabs button').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.filter-tabs button').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }; });
 document.querySelectorAll('#layer-toggle button').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('#layer-toggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     if (!globe) return;
-    const layer = btn.dataset.layer;
-    if (layer === 'sat') {
-      globe.globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg');
-    } else {
-      globe.globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg');
-    }
+    globe.globeImageUrl(btn.dataset.layer === 'sat'
+      ? 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg'
+      : 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg');
   };
 });
+document.getElementById('featPrev').onclick = () => document.getElementById('featScroll').scrollBy({ left: -190, behavior: 'smooth' });
+document.getElementById('featNext').onclick = () => document.getElementById('featScroll').scrollBy({ left: 190, behavior: 'smooth' });
 
-document.getElementById('featPrev').onclick = () => {
-  document.getElementById('featScroll').scrollBy({ left: -190, behavior: 'smooth' });
-};
-document.getElementById('featNext').onclick = () => {
-  document.getElementById('featScroll').scrollBy({ left: 190, behavior: 'smooth' });
-};
-
-document.getElementById('searchProps').onclick = () => {
-  const q = document.getElementById('filterLoc').value.trim().toLowerCase();
+async function runSearch(q) {
+  q = (q || '').trim().toLowerCase();
   if (!q) return;
-  const match = MARKERS.find(m =>
-    m.name.toLowerCase().includes(q) || m.cities.some(c => c.toLowerCase().includes(q))
-  );
-  if (match) showLocation(match);
-};
+  const match = AppState.markers.find(m => m.name.toLowerCase().includes(q) || (m.cities || []).some(c => c.toLowerCase().includes(q)));
+  if (match) { showLocation(match); return; }
+  const geo = GEO.find(g => g.name.toLowerCase().includes(q) || g.cities.some(c => c.toLowerCase().includes(q)));
+  if (geo) showLocation({ name: geo.name, flag: geo.flag, lat: geo.lat, lng: geo.lng, count: 0, cities: geo.cities });
+}
+document.getElementById('searchProps').onclick = () => runSearch(document.getElementById('filterLoc').value);
+document.getElementById('topSearch').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(e.target.value); });
 
-document.getElementById('topSearch').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const q = e.target.value.trim().toLowerCase();
-  const match = MARKERS.find(m =>
-    m.name.toLowerCase().includes(q) || m.cities.some(c => c.toLowerCase().includes(q))
-  );
-  if (match) showLocation(match);
-});
-
-/* ========== PROFILE (Buyer / Seller) & SELL PAGE ========== */
-const UserState = {
-  role: localStorage.getItem('hc_role') || 'buyer',
-  name: 'Sarah Johnson',
-  email: 'sarah.j@email.com'
-};
-
-function setRole(role) {
-  UserState.role = role;
-  localStorage.setItem('hc_role', role);
-  document.body.classList.remove('role-buyer', 'role-seller');
-  document.body.classList.add('role-' + role);
-  const badge = role === 'seller'
-    ? '<span class="role-badge seller">Seller</span>'
-    : '<span class="role-badge buyer">Buyer</span>';
-  document.getElementById('profileRoleLabel').innerHTML = badge;
-  document.getElementById('roleBuyer').classList.toggle('active', role === 'buyer');
-  document.getElementById('roleSeller').classList.toggle('active', role === 'seller');
-  document.querySelectorAll('.seller-only').forEach(el => {
-    el.style.display = role === 'seller' ? 'flex' : 'none';
+/* =========================================================================
+   SELL / LIST PROPERTY — real Supabase writes, gated by auth, ending in a
+   real Stripe Checkout redirect via the `create-checkout` Edge Function.
+   ========================================================================= */
+function openSellPage() {
+  requireAuth(() => {
+    document.getElementById('sell-page').classList.add('show');
+    document.getElementById('profileMenu').classList.remove('show');
+    window.scrollTo(0, 0);
   });
 }
+function closeSellPage() { document.getElementById('sell-page').classList.remove('show'); }
 
-function openSellPage() {
-  document.getElementById('sell-page').classList.add('show');
-  document.getElementById('profileMenu').classList.remove('show');
-  window.scrollTo(0, 0);
-}
-
-function closeSellPage() {
-  document.getElementById('sell-page').classList.remove('show');
-}
-
-document.getElementById('profileBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('profileMenu').classList.toggle('show');
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('#profileBtn')) {
-    document.getElementById('profileMenu').classList.remove('show');
-  }
-});
-
-document.getElementById('roleBuyer').onclick = e => { e.stopPropagation(); setRole('buyer'); };
-document.getElementById('roleSeller').onclick = e => { e.stopPropagation(); setRole('seller'); };
+document.getElementById('profileBtn').addEventListener('click', e => { e.stopPropagation(); document.getElementById('profileMenu').classList.toggle('show'); });
+document.addEventListener('click', e => { if (!e.target.closest('#profileBtn')) document.getElementById('profileMenu').classList.remove('show'); });
 
 document.getElementById('navSell').onclick = e => { e.preventDefault(); openSellPage(); };
 document.getElementById('btnListProperty').onclick = e => { e.preventDefault(); openSellPage(); };
-document.querySelectorAll('[data-page="sell"]').forEach(el => {
-  el.addEventListener('click', e => { e.preventDefault(); openSellPage(); });
-});
-document.querySelectorAll('[data-page="explore"]').forEach(el => {
-  el.addEventListener('click', e => { e.preventDefault(); closeSellPage(); });
-});
+document.querySelectorAll('[data-page="sell"]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); openSellPage(); }));
+document.querySelectorAll('[data-page="explore"]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); closeSellPage(); }));
 document.getElementById('sellBack').onclick = closeSellPage;
 document.getElementById('sellCancel').onclick = closeSellPage;
 
-// Photo upload
-const photoZone = document.getElementById('photoZone');
-const photoInput = document.getElementById('photoInput');
-const photoPreview = document.getElementById('photoPreview');
+const photoZone = document.getElementById('photoZone'), photoInput = document.getElementById('photoInput'), photoPreview = document.getElementById('photoPreview');
 let photoFiles = [];
-
 photoZone.addEventListener('click', () => photoInput.click());
 photoZone.addEventListener('dragover', e => { e.preventDefault(); photoZone.classList.add('drag'); });
 photoZone.addEventListener('dragleave', () => photoZone.classList.remove('drag'));
-photoZone.addEventListener('drop', e => {
-  e.preventDefault();
-  photoZone.classList.remove('drag');
-  addPhotos(e.dataTransfer.files);
-});
+photoZone.addEventListener('drop', e => { e.preventDefault(); photoZone.classList.remove('drag'); addPhotos(e.dataTransfer.files); });
 photoInput.addEventListener('change', () => addPhotos(photoInput.files));
-
-function addPhotos(fileList) {
-  Array.from(fileList).forEach(f => {
-    if (!f.type.startsWith('image/')) return;
-    if (photoFiles.length >= 10) return;
-    photoFiles.push(f);
-  });
-  renderPhotoPreview();
-}
+function addPhotos(fileList) { Array.from(fileList).forEach(f => { if (!f.type.startsWith('image/')) return; if (photoFiles.length >= 10) return; photoFiles.push(f); }); renderPhotoPreview(); }
 function renderPhotoPreview() {
-  photoPreview.innerHTML = photoFiles.map((f, i) =>
-    `<span class="file-chip">${f.name.slice(0, 18)}${f.name.length > 18 ? '…' : ''} <button type="button" data-i="${i}">×</button></span>`
-  ).join('');
-  photoPreview.querySelectorAll('button').forEach(btn => {
-    btn.onclick = () => {
-      photoFiles.splice(+btn.dataset.i, 1);
-      renderPhotoPreview();
-    };
-  });
+  photoPreview.innerHTML = photoFiles.map((f, i) => `<span class="file-chip">${escapeHtml(f.name.slice(0, 18))}${f.name.length > 18 ? '…' : ''} <button type="button" data-i="${i}">×</button></span>`).join('');
+  photoPreview.querySelectorAll('button').forEach(btn => { btn.onclick = () => { photoFiles.splice(+btn.dataset.i, 1); renderPhotoPreview(); }; });
 }
-
-// Document boxes
 document.querySelectorAll('.doc-box').forEach(box => {
   const input = box.querySelector('input[type=file]');
   box.addEventListener('click', () => input.click());
-  input.addEventListener('change', () => {
-    if (input.files[0]) {
-      box.classList.add('filled');
-      box.querySelector('.doc-hint').textContent = input.files[0].name.slice(0, 22) + (input.files[0].name.length > 22 ? '…' : '');
-    }
-  });
+  input.addEventListener('change', () => { if (input.files[0]) { box.classList.add('filled'); box.querySelector('.doc-hint').textContent = input.files[0].name.slice(0, 22) + (input.files[0].name.length > 22 ? '…' : ''); } });
 });
 
-// Submit listing ($10 fee — demo)
-/* ========== SUPABASE ========== */
-let sb = null;
-try {
-  const cfg = window.HC_CONFIG || {};
-  if (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && window.supabase) {
-    sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-  }
-} catch (e) { console.warn('Supabase init failed', e); }
-
-async function ensureSellerSession() {
-  if (!sb) {
-    alert('Database not connected. Check config.js on the site.');
-    return null;
-  }
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) return session;
-  const email = prompt('Seller email (we create an account if new):');
-  if (!email) return null;
-  const password = prompt('Password (min 6 characters):');
-  if (!password || password.length < 6) {
-    alert('Password must be at least 6 characters.');
-    return null;
-  }
-  let { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    const fullName = document.getElementById('sellFullName')?.value?.trim() || email.split('@')[0];
-    ({ data, error } = await sb.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName, role: 'seller' } }
-    }));
-    if (error) {
-      alert('Login/signup failed: ' + error.message);
-      return null;
-    }
-    alert('Account created. If email confirmation is required, confirm then try again.');
-  }
-  // Ensure seller role on profile
-  const uid = data.session?.user?.id || data.user?.id;
-  if (uid) {
-    await sb.from('profiles').update({ role: 'seller' }).eq('id', uid);
-    setRole('seller');
-  }
-  return data.session || (await sb.auth.getSession()).data.session;
-}
-
-async function uploadFile(bucket, path, file) {
+async function uploadToBucket(bucket, path, file) {
   const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
   if (error) throw error;
-  if (bucket === 'property-photos') {
-    const { data } = sb.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
-  }
   return path;
 }
 
 document.getElementById('sellSubmit').onclick = async () => {
+  if (!backendReady()) { alert('Database not connected. Fill in window.HC_CONFIG at the top of this file.'); return; }
+  if (!AppState.user) { requireAuth(() => document.getElementById('sellSubmit').click()); return; }
+
   const title = document.getElementById('sellTitle').value.trim();
   const country = document.getElementById('sellCountry').value.trim();
   const city = document.getElementById('sellCity').value.trim();
   const fullName = document.getElementById('sellFullName').value.trim();
   const idNumber = document.getElementById('sellIdNumber').value.trim();
   const agree = document.getElementById('sellAgree').checked;
-  const ownership = document.querySelector('#docOwnership input').files[0];
-  const idCard = document.querySelector('#docIdCard input').files[0];
-  const license = document.querySelector('#docLicense input').files[0];
+  const ownershipFile = document.querySelector('#docOwnership input').files[0];
+  const idCardFile = document.querySelector('#docIdCard input').files[0];
+  const licenseFile = document.querySelector('#docLicense input').files[0];
+  const landFile = document.querySelector('#docLand input').files[0];
+  const extraFile = document.querySelector('#docExtra input').files[0];
 
-  if (!title || !country || !city) {
-    alert('Please fill in title, country and city.');
-    return;
-  }
-  if (!fullName || !idNumber) {
-    alert('Full legal name and ID / passport number are required.');
-    return;
-  }
-  if (!idCard) {
-    alert('Please upload a photo of your ID card or passport.');
-    return;
-  }
-  if (!ownership) {
-    alert('Proof of ownership (title deed / land certificate) is required.');
-    return;
-  }
-  if (!agree) {
-    alert('Please confirm that your documents are authentic.');
-    return;
-  }
-  if (photoFiles.length < 1) {
-    alert('Please upload at least one property photo.');
-    return;
-  }
+  if (!title || !country || !city) { alert('Please fill in title, country and city.'); return; }
+  if (!fullName || !idNumber) { alert('Full legal name and ID / passport number are required.'); return; }
+  if (!idCardFile) { alert('Please upload a photo of your ID card or passport.'); return; }
+  if (!ownershipFile) { alert('Proof of ownership (title deed / land certificate) is required.'); return; }
+  if (!agree) { alert('Please confirm that your documents are authentic.'); return; }
+  if (photoFiles.length < 1) { alert('Please upload at least one property photo.'); return; }
 
   const btn = document.getElementById('sellSubmit');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
-    const session = await ensureSellerSession();
-    if (!session) {
-      btn.disabled = false;
-      btn.textContent = 'Pay $10 & Publish Listing';
-      return;
-    }
-    const uid = session.user.id;
+    const uid = AppState.user.id;
+    await sb.from('profiles').update({ role: 'seller' }).eq('id', uid);
+    setRoleUI('seller'); AppState.profile.role = 'seller';
 
-    // Update profile name
-    await sb.from('profiles').update({ full_name: fullName, role: 'seller' }).eq('id', uid);
+    // 1. Seller identity verification (separate from the property, private bucket)
+    const idFrontPath = uid + '/identity/id_front_' + idCardFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    await uploadToBucket('identity-documents', idFrontPath, idCardFile);
+    const { error: verErr } = await sb.from('seller_verification').upsert({
+      profile_id: uid, full_legal_name: fullName, id_type: 'national_id_or_passport',
+      id_number: idNumber, id_front_path: idFrontPath, status: 'pending'
+    }, { onConflict: 'profile_id' });
+    if (verErr) throw verErr;
 
+    // 2. Property record
     const price = parseFloat(document.getElementById('sellPrice').value) || 0;
     const { data: prop, error: propErr } = await sb.from('properties').insert({
       owner_id: uid,
       title,
-      description: (document.getElementById('sellDesc').value || '') +
-        '\n\n[Seller ID ref: ' + idNumber + ']',
+      description: document.getElementById('sellDesc').value || '',
       property_type: document.getElementById('sellType').value,
-      listing_type: document.getElementById('sellTxn').value,
-      price_usd: price,
+      listing_type: document.getElementById('sellTxn').value === 'For Rent' ? 'rent' : 'sale',
+      price, currency: 'USD',
       bedrooms: parseInt(document.getElementById('sellBeds').value || '0', 10),
       bathrooms: parseInt(document.getElementById('sellBaths').value || '0', 10),
-      country,
-      city,
+      country, city,
       address: document.getElementById('sellAddress').value.trim() || null,
       lat: parseFloat(document.getElementById('sellLat').value) || null,
       lng: parseFloat(document.getElementById('sellLng').value) || null,
-      status: 'pending_payment',
-      payment_status: 'unpaid'
+      status: 'awaiting_payment',
+      payment_status: 'pending'
     }).select().single();
-
     if (propErr) throw propErr;
     const propertyId = prop.id;
 
-    // Photos
+    // 3. Property photos (public bucket)
     for (let i = 0; i < photoFiles.length; i++) {
       const f = photoFiles[i];
       const path = uid + '/' + propertyId + '/photo_' + i + '_' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const publicUrl = await uploadFile('property-photos', path, f);
-      await sb.from('property_photos').insert({
-        property_id: propertyId,
-        storage_path: path,
-        public_url: publicUrl,
-        sort_order: i
-      });
+      await uploadToBucket('property-photos', path, f);
+      await sb.from('property_photos').insert({ property_id: propertyId, storage_path: path, is_main: i === 0, sort_order: i });
     }
 
-    // Documents
+    // 4. Ownership / legal documents (private bucket)
     async function saveDoc(file, docType) {
       if (!file) return;
       const path = uid + '/' + propertyId + '/' + docType + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      await uploadFile('property-documents', path, file);
-      await sb.from('property_documents').insert({
-        property_id: propertyId,
-        doc_type: docType,
-        storage_path: path,
-        file_name: file.name
-      });
+      await uploadToBucket('property-documents', path, file);
+      await sb.from('property_documents').insert({ property_id: propertyId, uploaded_by: uid, doc_type: docType, storage_path: path, file_name: file.name });
     }
-    await saveDoc(ownership, 'ownership');
-    await saveDoc(idCard, 'license'); // ID stored as license type for verification
-    await saveDoc(license, 'extra');
-    await saveDoc(document.querySelector('#docLand input').files[0], 'land');
-    await saveDoc(document.querySelector('#docExtra input').files[0], 'extra');
+    await saveDoc(ownershipFile, 'title_deed');
+    await saveDoc(licenseFile, 'seller_license');
+    await saveDoc(landFile, 'survey_document');
+    await saveDoc(extraFile, 'other');
 
-    btn.textContent = 'Saved — pay $10';
-    alert(
-      'Listing saved!\n\n' +
-      title + ' · ' + city + ', ' + country + '\n\n' +
-      'Status: pending payment ($10).\n' +
-      'Your documents (ID + ownership) are private for verification.\n\n' +
-      'Next: complete the $10 Stripe payment so the listing can be reviewed and published on the map.\n' +
-      'Property ID: ' + propertyId
-    );
+    btn.textContent = 'Redirecting to payment…';
 
-    // Try Edge Function checkout if deployed; otherwise user pays via Stripe Dashboard/Payment Link
-    try {
-      const { data: checkout, error: cErr } = await sb.functions.invoke('create-checkout', {
-        body: { property_id: propertyId, price_id: (window.HC_CONFIG || {}).STRIPE_PRICE_ID }
-      });
-      if (!cErr && checkout?.url) {
-        window.location.href = checkout.url;
-        return;
-      }
-    } catch (_) { /* function may not be deployed yet */ }
-
-    alert('Listing is in the database.\nDeploy the Stripe Edge Function (create-checkout) to enable automatic $10 checkout.\nUntil then, mark payment in Supabase after you receive $10.');
-    closeSellPage();
+    // 5. Real Stripe Checkout via Edge Function — the browser cannot mark payment itself.
+    const { data: checkout, error: cErr } = await sb.functions.invoke('create-checkout', { body: { property_id: propertyId } });
+    if (cErr || !checkout?.url) {
+      alert(
+        'Your listing and documents were saved (status: awaiting payment).\n\n' +
+        'The $10 Stripe checkout could not be started — the "create-checkout" Edge Function ' +
+        'may not be deployed yet. Deploy it (see houseconnect-architecture.md) and try payment again from your dashboard.\n\n' +
+        'Property ID: ' + propertyId
+      );
+      closeSellPage();
+      return;
+    }
+    window.location.href = checkout.url;
   } catch (err) {
     console.error(err);
-    alert('Error: ' + (err.message || err));
+    alert('Property upload failed: ' + (err.message || err));
   } finally {
     btn.disabled = false;
     btn.textContent = 'Pay $10 & Publish Listing';
   }
 };
 
-document.querySelectorAll('.doc-box .doc-hint').forEach(h => { h.dataset.orig = h.textContent; });
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+async function boot() {
+  buildDestinations();
+  initGlobe();
+  await refreshPropertyData();
 
-// Boot
-setRole(UserState.role);
-buildFeatured();
-buildDestinations();
-initGlobe();
+  if (backendReady()) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) await onSignedIn(session.user);
+    renderAuthUI();
+
+    sb.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) { await onSignedIn(session.user); }
+      else { AppState.user = null; AppState.profile = null; AppState.savedIds = new Set(); renderAuthUI(); }
+    });
+  } else {
+    renderAuthUI();
+  }
+}
+boot();
 </script>
 </body>
 </html>

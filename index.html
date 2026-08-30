@@ -1769,7 +1769,7 @@ document.querySelectorAll('.doc-box').forEach(box => {
 });
 
 async function uploadToBucket(bucket, path, file) {
-  const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+  const { error } = await sb.storage.from(bucket).upload(path, file);
   if (error) throw error;
   return path;
 }

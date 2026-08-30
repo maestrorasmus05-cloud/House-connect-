@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://maestrorasmus05-cloud.github.io/House-connect-/sitemap.xml

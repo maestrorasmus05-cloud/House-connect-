@@ -1778,7 +1778,7 @@ document.querySelectorAll('.doc-box').forEach(box => {
 });
 
 async function uploadToBucket(bucket, path, file) {
-  const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: true });
+  const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: false });
   if (error) throw error;
   return path;
 }
@@ -1815,7 +1815,7 @@ document.getElementById('sellSubmit').onclick = async () => {
     setRoleUI('seller'); AppState.profile.role = 'seller';
 
     // 1. Seller identity verification (separate from the property, private bucket)
-    const idFrontPath = uid + '/identity/id_front_' + idCardFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const idFrontPath = uid + '/identity/id_front_' + Date.now() + '_' + idCardFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     await uploadToBucket('identity-documents', idFrontPath, idCardFile);
     const { error: verErr } = await sb.from('seller_verification').upsert({
       profile_id: uid, full_legal_name: fullName, id_type: 'national_id_or_passport',

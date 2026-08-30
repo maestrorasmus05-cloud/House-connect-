@@ -1830,7 +1830,7 @@ document.getElementById('sellSubmit').onclick = async () => {
       lat: parseFloat(document.getElementById('sellLat').value) || null,
       lng: parseFloat(document.getElementById('sellLng').value) || null,
       status: 'awaiting_payment',
-      payment_status: 'pending'
+      payment_status: 'unpaid'
     }).select().single();
     if (propErr) throw propErr;
     const propertyId = prop.id;

@@ -1351,7 +1351,7 @@ document.getElementById('accAvatarFile').addEventListener('change', async e => {
   try {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = AppState.user.id + '/avatar.' + ext;
-    const { error: upErr } = await sb.storage.from('avatars').upload(path, file, { upsert: true });
+    const { error } = await sb.storage.from(bucket).upload(path, file);
     if (upErr) throw upErr;
     const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
     const { error: dbErr } = await sb.from('profiles').update({ avatar_url: pub.publicUrl }).eq('id', AppState.user.id);

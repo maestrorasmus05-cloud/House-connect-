@@ -1829,7 +1829,7 @@ document.getElementById('sellSubmit').onclick = async () => {
       address: document.getElementById('sellAddress').value.trim() || null,
       lat: parseFloat(document.getElementById('sellLat').value) || null,
       lng: parseFloat(document.getElementById('sellLng').value) || null,
-      status: 'awaiting_payment',
+      status: 'pending_payment',
       payment_status: 'unpaid'
     }).select().single();
     if (propErr) throw propErr;

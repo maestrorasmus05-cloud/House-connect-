@@ -1232,9 +1232,15 @@ async function loadProfile() {
 }
 
 async function loadSavedIds() {
-  if (!sb || !AppState.user) return;
-  const { data, error } = await sb.from('saved_properties').select('property_id').eq('profile_id', AppState.user.id);
-  if (!error && data) AppState.savedIds = new Set(data.map(r => r.property_id));
+  if (!AppState.user) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem('houseconnect_saved_' + AppState.user.id) || '[]');
+    AppState.savedIds = new Set(saved);
+  } catch (_) { AppState.savedIds = new Set(); }
+}
+function persistSavedIds() {
+  if (!AppState.user) return;
+  localStorage.setItem('houseconnect_saved_' + AppState.user.id, JSON.stringify(Array.from(AppState.savedIds)));
 }
 
 function avatarFallbackHTML(name) {
@@ -1351,13 +1357,16 @@ document.getElementById('accAvatarFile').addEventListener('change', async e => {
   try {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = AppState.user.id + '/avatar.' + ext;
-    const { error } = await sb.storage.from(bucket).upload(path, file);
-    if (upErr) throw upErr;
-    const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
-    const { error: dbErr } = await sb.from('profiles').update({ avatar_url: pub.publicUrl }).eq('id', AppState.user.id);
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Could not read the selected image.'));
+      reader.readAsDataURL(file);
+    });
+    const { error: dbErr } = await sb.from('profiles').update({ avatar_url: dataUrl }).eq('id', AppState.user.id);
     if (dbErr) throw dbErr;
-    AppState.profile.avatar_url = pub.publicUrl;
-    document.getElementById('accAvatarImg').src = pub.publicUrl;
+    AppState.profile.avatar_url = dataUrl;
+    document.getElementById('accAvatarImg').src = dataUrl;
     document.getElementById('accAvatarImg').style.display = 'block';
     renderAuthUI();
     setModalMsg('accMsg', 'Photo updated.', 'ok');
@@ -1393,12 +1402,11 @@ async function toggleSaved(propertyId) {
   if (!AppState.user) { requireAuth(() => toggleSaved(propertyId)); return; }
   const isSaved = AppState.savedIds.has(propertyId);
   if (isSaved) {
-    const { error } = await sb.from('saved_properties').delete().eq('profile_id', AppState.user.id).eq('property_id', propertyId);
-    if (!error) AppState.savedIds.delete(propertyId);
+    AppState.savedIds.delete(propertyId);
   } else {
-    const { error } = await sb.from('saved_properties').insert({ profile_id: AppState.user.id, property_id: propertyId });
-    if (!error) AppState.savedIds.add(propertyId);
+    AppState.savedIds.add(propertyId);
   }
+  persistSavedIds();
   buildFeatured();
 }
 
@@ -1406,14 +1414,15 @@ async function openSavedModal() {
   document.getElementById('savedModal').classList.add('show');
   const grid = document.getElementById('savedGrid');
   grid.innerHTML = '<div class="saved-empty">Loading…</div>';
+  const ids = Array.from(AppState.savedIds);
+  if (!ids.length) { grid.innerHTML = '<div class="saved-empty">You haven\'t saved any properties yet. Tap the heart on a listing to save it.</div>'; return; }
   const { data, error } = await sb
-    .from('saved_properties')
-    .select('property_id, properties(*, property_photos(storage_path, is_main))')
-    .eq('profile_id', AppState.user.id);
+    .from('properties')
+    .select('*, property_photos(storage_path, sort_order)')
+    .in('id', ids);
   if (error) { grid.innerHTML = '<div class="saved-empty">Could not load saved properties: ' + error.message + '</div>'; return; }
   if (!data || !data.length) { grid.innerHTML = '<div class="saved-empty">You haven\'t saved any properties yet. Tap the heart on a listing to save it.</div>'; return; }
-  grid.innerHTML = data.map(row => {
-    const p = row.properties;
+  grid.innerHTML = data.map(p => {
     if (!p) return '';
     const img = photoUrlFor(p);
     return `<div class="feat-card">
@@ -1432,7 +1441,7 @@ document.getElementById('savedClose').onclick = () => document.getElementById('s
 function escapeHtml(s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function photoUrlFor(property) {
   const photos = property.property_photos || [];
-  const main = photos.find(ph => ph.is_main) || photos[0];
+  const main = photos.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0];
   if (!main) return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80';
   const { data } = sb.storage.from('property-photos').getPublicUrl(main.storage_path);
   return data.publicUrl;
@@ -1451,7 +1460,7 @@ async function refreshPropertyData() {
   }
   const { data, error } = await sb
     .from('properties')
-    .select('*, property_photos(storage_path, is_main, sort_order)')
+    .select('*, property_photos(storage_path, sort_order)')
     .eq('status', 'published')
     .order('created_at', { ascending: false })
     .limit(60);
@@ -1821,7 +1830,8 @@ document.getElementById('sellSubmit').onclick = async () => {
       title,
       description: document.getElementById('sellDesc').value || '',
       property_type: document.getElementById('sellType').value,
-      listing_type: document.getElementById('sellTxn').value === 'For Rent' ? 'rent' : 'sale',
+      listing_type: document.getElementById('sellTxn').value,
+      price_usd: price,
       price, currency: 'USD',
       bedrooms: parseInt(document.getElementById('sellBeds').value || '0', 10),
       bathrooms: parseInt(document.getElementById('sellBaths').value || '0', 10),
@@ -1829,8 +1839,8 @@ document.getElementById('sellSubmit').onclick = async () => {
       address: document.getElementById('sellAddress').value.trim() || null,
       lat: parseFloat(document.getElementById('sellLat').value) || null,
       lng: parseFloat(document.getElementById('sellLng').value) || null,
-      status: 'awaiting_payment',
-      payment_status: 'pending'
+      status: 'pending_payment',
+      payment_status: 'unpaid'
     }).select().single();
     if (propErr) throw propErr;
     const propertyId = prop.id;
@@ -1840,7 +1850,7 @@ document.getElementById('sellSubmit').onclick = async () => {
       const f = photoFiles[i];
       const path = uid + '/' + propertyId + '/photo_' + i + '_' + f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       await uploadToBucket('property-photos', path, f);
-      await sb.from('property_photos').insert({ property_id: propertyId, storage_path: path, is_main: i === 0, sort_order: i });
+      await sb.from('property_photos').insert({ property_id: propertyId, storage_path: path, sort_order: i });
     }
 
     // 4. Ownership / legal documents (private bucket)
@@ -1848,12 +1858,12 @@ document.getElementById('sellSubmit').onclick = async () => {
       if (!file) return;
       const path = uid + '/' + propertyId + '/' + docType + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       await uploadToBucket('property-documents', path, file);
-      await sb.from('property_documents').insert({ property_id: propertyId, uploaded_by: uid, doc_type: docType, storage_path: path, file_name: file.name });
+      await sb.from('property_documents').insert({ property_id: propertyId, doc_type: docType, storage_path: path, file_name: file.name });
     }
-    await saveDoc(ownershipFile, 'title_deed');
-    await saveDoc(licenseFile, 'seller_license');
-    await saveDoc(landFile, 'survey_document');
-    await saveDoc(extraFile, 'other');
+    await saveDoc(ownershipFile, 'ownership');
+    await saveDoc(licenseFile, 'license');
+    await saveDoc(landFile, 'land');
+    await saveDoc(extraFile, 'extra');
 
     btn.textContent = 'Redirecting to payment…';
 

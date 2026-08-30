@@ -1822,7 +1822,7 @@ document.getElementById('sellSubmit').onclick = async () => {
       description: document.getElementById('sellDesc').value || '',
       property_type: document.getElementById('sellType').value,
       listing_type: document.getElementById('sellTxn').value === 'For Rent' ? 'rent' : 'sale',
-      price, currency: 'USD',
+      price_usd: price, currency: 'USD',
       bedrooms: parseInt(document.getElementById('sellBeds').value || '0', 10),
       bathrooms: parseInt(document.getElementById('sellBaths').value || '0', 10),
       country, city,

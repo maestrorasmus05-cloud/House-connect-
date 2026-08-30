@@ -1872,7 +1872,12 @@ document.getElementById('sellSubmit').onclick = async () => {
     window.location.href = checkout.url;
   } catch (err) {
     console.error(err);
-    alert('Property upload failed: ' + (err.message || err));
+    alert(
+  'Property upload failed.\n\n' +
+  'Error: ' + (err.message || err) + '\n\n' +
+  'Please open the browser console (F12) and send me the red error text.'
+);
+console.error('HOUSECONNECT PROPERTY UPLOAD ERROR:', err);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Pay $10 & Publish Listing';
